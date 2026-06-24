@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package message;
+
+/*service VarifyService：定义了一个名为 VarifyService 的服务。你可以把它理解为"一组远程方法的集合"，类似于 Java/C++ 中的一个接口（Interface）。
+  rpc GetVarifyCode：定义了一个远程方法，名字叫 GetVarifyCode。rpc 是关键字，表示这是一个远程过程调用（Remote Procedure Call）。
+    (GetVarifyReq)：这个方法的输入参数类型是 GetVarifyReq（就是下面定义的那个 message）。
+    returns (GetVarifyRsp)：这个方法的返回值类型是 GetVarifyRsp（也是下面定义的 message）。
+    {}：方法体为空，因为 .proto 文件只负责定义接口，不负责实现。实现是由服务端代码来完成的。*/
+service VarifyService {
+  rpc GetVarifyCode (GetVarifyReq) returns (GetVarifyRsp) {}
+}
+
+message GetVarifyReq {
+  string email = 1;
+}
+
+message GetVarifyRsp {
+  int32 error = 1;
+  string email = 2;
+  string code = 3;
+}
+
+
+message GetChatServerReq {
+  int32 uid = 1;
+}
+
+message GetChatServerRsp {
+  int32 error = 1;
+  string host = 2;
+  string port = 3;
+  string token = 4;
+}
+
+message LoginReq{
+	int32 uid = 1;
+	string token= 2;
+}
+
+message LoginRsp {
+	int32 error = 1;
+	int32 uid = 2;
+	string token = 3;
+}
+
+service StatusService {
+    rpc GetChatServer (GetChatServerReq) returns (GetChatServerRsp) {}
+    rpc Login (LoginReq) returns (LoginRsp) ;
+}

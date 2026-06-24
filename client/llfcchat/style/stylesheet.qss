@@ -1,0 +1,769 @@
+QDialog#LoginDialog,#RegisterDialog{
+    background-color:rgb(255,255,255);
+}
+
+#userLable,#pwdLable{
+    color:black;
+}
+
+/*当 err_tip 控件的 state 属性被设为 'normal' 时，它的文字显示为绿色（通常表示输入正常、验证通过）。
+当 err_tip 控件的 state 属性被设为 'err' 时，它的文字显示为红色（通常表示输入有误、验证失败）。*/
+#errTip[state='normal']{
+    color:green;
+}
+#errTip[state='err']{
+    color:red;
+}
+
+/* 1.#pwdVisbleLabel: 匹配对象名为 "pwdVisbleLabel" 的控件
+   2.[state='invisible'] — 属性选择器
+        方括号 [ ] 匹配 Qt 控件的动态属性（dynamic property）。
+        state='invisible' 表示"当这个控件的 state 属性值等于 `'invisible'" 时才匹配。
+   这个属性是在 C++ 代码中通过 setProperty 设置的：
+        ui->pwdVisbleLabel->setProperty("state", "invisible");   ← 设置属性
+        repolish(ui->pwdVisbleLabel);                             ← 刷新样式
+    3.border-image: 将图片作为控件的边框和背景   会把图片拉伸或平铺到整个控件的边框区域和内容区域，覆盖整个控件表面*/
+
+#pwdVisbleLabel[state='invisible']{
+    border-image: url(:/res/invisible.png);
+}
+
+#pwdVisbleLabel[state='invisible_hover']{
+    border-image: url(:/res/invisible_hover.png);
+}
+
+#pwdVisbleLabel[state='visible']{
+    border-image: url(:/res/visible.png);
+}
+
+#pwdVisbleLabel[state='visible_hover']{
+    border-image: url(:/res/visible_hover.png);
+}
+
+/*----------------------------------------------*/
+#confirmVisbleLabel[state='invisible']{
+    border-image: url(:/res/invisible.png);
+}
+
+#confirmVisbleLabel[state='invisible_hover']{
+    border-image: url(:/res/invisible_hover);
+}
+
+#confirmVisbleLabel[state='visible']{
+    border-image: url(:/res/visible.png);
+}
+
+#confirmVisbleLabel[state='visible_hover']{
+    border-image: url(:/res/visible_hover.png);
+}
+
+#forgetLabel[state='normal'],#forget_label[state='selected']{
+    color:black;
+}
+
+#forgetLabel[state='hover'], #forget_label[state='selected_hover']{
+    color: rgb(42, 112, 241);
+}
+
+#side_bar{
+    background-color:rgb(46,46,46);
+}
+
+#add_btn[state = 'normal']{
+    border-image: url(:/res/add_friend_normal.png);
+}
+
+#add_btn[state = 'press']{
+    border-image: url(:/res/add_friend_hover.png);
+}
+
+#add_btn[state = 'hover']{
+    border-image: url(:/res/add_friend_hover.png);
+}
+
+#search_wid{
+     background-color:rgb(247,247,247);
+}
+
+#search_edit {
+    border: 2px solid #f1f1f1;
+    /*2px:边框宽度——>2像素
+    solid:边框样式——>实线
+    #f1f1f1——>浅灰色*/
+}
+
+/* 搜索框列表*/
+#search_list {
+    background-color: rgb(247,247,248);
+    border: none;
+}
+
+#search_list::item:selected {
+    background-color: #d3d7d4;
+    border: none;
+    outline: none;
+}
+
+#search_list::item:hover {
+    background-color: rgb(206,207,208);
+    border: none;
+    outline: none;
+}
+
+#search_list::focus {
+    border: none;
+    outline: none;
+}
+
+#invalid_item {
+    background-color: #eaeaea;
+    border: none;
+}
+
+#add_tip {
+    border-image: url(:/res/addtip.png);
+}
+
+#right_tip{
+ border-image: url(:/res/right_tip.png);
+}
+
+#message_tip{
+  text-align: center;
+  font-family: "Microsoft YaHei";
+  font-size: 12pt;
+}
+
+/*#chat_user_wid{
+    background-color:rgb(0,0,0);
+}*/
+
+#chat_user_list{
+    background-color: rgb(247,247,248);
+    border: none;
+}
+
+#chat_user_list::item:selected {
+    background-color: #d3d7d4;
+    border: none;
+    outline: none;
+}
+
+#chat_user_list::item:hover {
+    background-color: rgb(206,207,208);
+    border: none;
+    outline: none;
+}
+
+#chat_user_list::focus {
+    border: none;
+    outline: none;
+}
+/*绘制顺序（从上往下画，前面的盖住后面的）：
+第 1 层（最底层）：QListWidget 绘制自己
+    ┌──────────────────────┐
+    │  list 背景: 247,247,248  │
+    └──────────────────────┘
+
+第 2 层：QListWidget 绘制 item 的背景
+    ┌──────────────────────┐
+    │  item[0]: 247,247,248   │  ← 普通
+    ├──────────────────────┤
+    │  item[1]: #d3d7d4     │  ← 选中！但等一下...
+    ├──────────────────────┤
+    │  item[2]: 247,247,248   │
+    └──────────────────────┘
+
+第 3 层：QListWidget 绘制每个 item 的 widget（ChatUserWid）
+    ┌──────────────────────┐
+    │  ChatUserWid[0]: 247,247,247  │  ← 覆盖 item[0] ✅ （颜色差不多，看不出）
+    ├──────────────────────┤
+    │  ChatUserWid[1]: 247,247,247  │  ← 覆盖了 item[1] 的 #d3d7d4 ❌ （选中效果没了！）
+    ├──────────────────────┤
+    │  ChatUserWid[2]: 247,247,247  │  ← 覆盖 item[2] ✅
+    └──────────────────────┘
+     选中效果被 ChatUserWid 的背景遮住了，完全看不出来
+     */
+/*ChatUserWid {
+    background-color:rgb(247,247,247);
+    border: none;
+}*/
+
+#user_chat_lb{
+    color:rgb(153,153,153);
+    font-size: 12px;
+    font-family: "Microsoft YaHei";
+}
+
+#user_name_lb{
+    color:rgb(0,0,0);
+    font-size: 14px;
+    font-weight: normal;
+    font-family: "Microsoft YaHei";
+}
+
+#time_wid #time_lb{
+   color:rgb(140,140,140);
+   font-size: 12px;
+   font-family: "Microsoft YaHei";
+}
+
+/* 1. 滚动条的轨道（背景）*/
+QScrollBar:vertical {
+    background: transparent; /* 轨道背景透明，不遮挡内容 */
+    width: 8px;              /* 将滚动条整体宽度限制为 8 像素（默认通常比较宽） */
+    margin: 0px;             /* 清除默认的边距，让滚动条紧贴边缘 */
+}
+/* 2.滚动条的滑块（Handle）*/
+QScrollBar::handle:vertical {
+    background: rgb(173,170,169); /* 滑块颜色设置为浅灰色 */
+    min-height: 10px;             /* 滑块的最小高度（防止内容极少时滑块缩成一个点） */
+    border-radius: 4px;           /* 设置 4px 的圆角（宽度是 8px，一半正好是 4px，形成完美的胶囊/椭圆形状） */
+}
+/* 3.隐藏上下箭头按钮*/
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;       /* 将高度设为 0，彻底隐藏 */
+    border: none;      /* 移除边框 */
+    background: transparent; /* 背景透明 */
+}
+/* 4.隐藏点击轨道产生的背景色*/
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;  /* 清除轨道上下区域的背景 */
+}
+/*QScrollBar::sub-page:vertical：代表垂直滚动条中，滑块上方的空白轨道区域。
+QScrollBar::add-page:vertical：代表垂直滚动条中，滑块下方的空白轨道区域
+这两个区域不仅仅是视觉上的背景，它们还承担着交互功能。当你用鼠标点击滑块上方或下方的这些空白区域时，列表或文本框会向上或向下翻页滚动*/
+
+LoadingDlg{
+    background: #f2eada;
+}
+
+#title_lb{
+    font-family: "Microsoft YaHei";
+    font-size: 18px;
+    font-weight: normal;
+}
+
+#chat_edit{
+    background: #ffffff;
+    border: none; /* 隐藏边框 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    font-size: 18px; /* 设置字体大小 */
+    padding: 5px; /* 设置内边距 */
+}
+
+#send_wid{
+    background: #ffffff;
+    border: none; /* 隐藏边框 */
+}
+
+#receive_btn[state='normal']{
+   background: #f0f0f0;
+   color: #2cb46e;
+   font-size: 16px; /* 设置字体大小 */
+   font-family: "Microsoft YaHei"; /* 设置字体 */
+   border-radius: 20px; /* 设置圆角 */
+}
+
+#receive_btn[state='hover']{
+   background: #d2d2d2;
+   color: #2cb46e;
+   font-size: 16px; /* 设置字体大小 */
+   font-family: "Microsoft YaHei"; /* 设置字体 */
+   border-radius: 20px; /* 设置圆角 */
+}
+
+#receive_btn[state='press']{
+   background: #c6c6c6;
+   color: #2cb46e;
+   font-size: 16px; /* 设置字体大小 */
+   font-family: "Microsoft YaHei"; /* 设置字体 */
+   border-radius: 20px; /* 设置圆角 */
+}
+
+#send_btn[state='normal']{
+    background: #f0f0f0;
+    color: #2cb46e;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#send_btn[state='hover']{
+   background: #d2d2d2;
+   color: #2cb46e;
+   font-size: 16px; /* 设置字体大小 */
+   font-family: "Microsoft YaHei"; /* 设置字体 */
+   border-radius: 20px; /* 设置圆角 */
+}
+
+#send_btn[state='press']{
+   background: #c6c6c6;
+   color: #2cb46e;
+   font-size: 16px; /* 设置字体大小 */
+   font-family: "Microsoft YaHei"; /* 设置字体 */
+   border-radius: 20px; /* 设置圆角 */
+}
+
+/*  实际上最规范的写法是定义类，重写QWidget的paintEvent or
+        在ChatPage 构造函数里加一行：ui->tool_wid->setStyleSheet("background:#ffffff; border-bottom:0.5px solid #ececec;");
+    但是在qt6中即是不重写QWidget的paintEvent，对于一些qss属性也是生效的*/
+#tool_wid{
+    background: #ffffff;
+    border-bottom: 0.5px solid #ececec; /* 设置下边框颜色和宽度 */
+}
+
+#emo_lb[state='normal']{
+    border-image: url(:/res/smile.png);
+}
+
+#emo_lb[state='hover']{
+    border-image: url(:/res/smile_hover.png);
+}
+
+#emo_lb[state='press']{
+    border-image: url(:/res/smile_press.png);
+}
+
+#file_lb[state='normal']{
+    border-image: url(:/res/filedir.png);
+}
+
+#file_lb[state='hover']{
+    border-image: url(:/res/filedir_hover.png);
+}
+
+#file_lb[state='press']{
+    border-image: url(:/res/filedir_press.png);
+}
+
+#chat_data_list{
+     background: black;
+}
+
+#chat_bg{
+    background: #f0f0f0;
+}
+
+#chat_area{
+    border: none;
+}
+
+#chat_user_name{
+    color:rgb(153,153,153);
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+}
+
+#side_chat_lb[state='normal']{
+    border-image: url(:/res/chat_icon.png);
+}
+
+#side_chat_lb[state='hover']{
+    border-image: url(:/res/chat_icon_hover.png);
+}
+
+#side_chat_lb[state='pressed']{
+    border-image: url(:/res/chat_icon_press.png);
+}
+
+#side_chat_lb[state='selected_normal']{
+    border-image: url(:/res/chat_icon_press.png);
+}
+
+#side_chat_lb[state='selected_hover']{
+    border-image: url(:/res/chat_icon_press.png);
+}
+
+#side_chat_lb[state='selected_pressed']{
+    border-image: url(:/res/chat_icon_press.png);
+}
+
+#side_contact_lb[state='normal']{
+    border-image: url(:/res/contact_list.png);
+}
+
+#side_contact_lb[state='hover']{
+    border-image: url(:/res/contact_list_hover.png);
+}
+
+#side_contact_lb[state='pressed']{
+    border-image: url(:/res/contact_list_press.png);
+}
+
+#side_contact_lb[state='selected_normal']{
+    border-image: url(:/res/contact_list_press.png);
+}
+
+#side_contact_lb[state='selected_hover']{
+    border-image: url(:/res/contact_list_press.png);
+}
+
+#side_contact_lb[state='selected_pressed']{
+    border-image: url(:/res/contact_list_press.png);
+}
+
+#FindSuccessDlg{
+   background-color: #ffffff;
+}
+
+#name_lb{
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+}
+
+#add_friend_btn[state='normal']{
+    background: #07c160;
+    color: #ffffff;
+    font-size: 14px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#add_friend_btn[state='hover']{
+    background: #3bbb4b;
+    color: #ffffff;
+    font-size: 14px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#add_friend_btn[state='press']{
+   background: #07c160;
+   color: #ffffff;
+   font-size: 14px; /* 设置字体大小 */
+   font-family: "Microsoft YaHei"; /* 设置字体 */
+   border-radius: 20px; /* 设置圆角 */
+}
+
+#ApplyFriend{
+    border: 2px solid #f1f1f1;
+    font-size: 14px;
+    background: #f7f7f8;
+}
+
+#scrollArea{
+    background: #f7f7f8;
+    border: none;
+}
+
+#scrollcontent{
+     background: #f7f7f8;
+}
+
+#scrollcontent #apply_lb{
+    font-family: "Microsoft YaHei";
+    font-size: 16px;
+    font-weight: normal;
+}
+
+#apply_wid QLabel{
+    color:rgb(140,140,140);
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+    height: 25px;
+}
+
+#apply_wid #name_ed, #apply_wid #back_ed{
+    border: 1px solid #f7f7f8;
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+}
+
+#apply_wid #lb_ed {
+       border: none;
+       font-size: 14px;
+       font-family: "Microsoft YaHei";
+}
+
+#apply_wid #more_lb{
+    border-image: url(:/res/arowdown.png);
+}
+
+#apply_wid #tipslb[state='normal'] {
+    padding: 2px;
+    background: #e1e1e1;
+    color: #1e1e1e;
+    border-radius: 10px;
+}
+
+#apply_wid #tipslb[state='hover'] {
+    padding: 2px;
+    background: #e1e1e1;
+    color: #1e1e1e;
+    border-radius: 10px;
+}
+
+#apply_wid #tipslb[state='pressed'] {
+    padding: 2px;
+    background: #e1e1e1;
+    color: #48bf56;
+    border-radius: 10px;
+}
+
+#apply_wid #tipslb[state='selected_normal'] {
+    padding: 2px;
+    background: #e1e1e1;
+    color: #48bf56;
+    border-radius: 10px;
+}
+
+#apply_wid #tipslb[state='selected_hover'] {
+    padding: 2px;
+    background: #e1e1e1;
+    color: #48bf56;
+    border-radius: 10px;
+}
+
+#apply_wid #tipslb[state='selected_pressed'] {
+    padding: 2px;
+    background: #e1e1e1;
+    color: #1e1e1e;
+    border-radius: 10px;
+}
+
+#input_tip_wid {
+    background: #d3eaf8;
+}
+
+#apply_wid #FriendLabel {
+    background: #daf6e7;
+    color: #48bf56;
+    border-radius: 10px;
+}
+
+#apply_wid #tip_lb {
+    padding-left: 2px;
+    color:rgb(153,153,153);
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+}
+
+#grid_wid {
+   background: #fdfdfd;
+}
+
+#close_lb[state='normal'] {
+    border-image: url(:/res/tipclose.png);
+}
+
+#close_lb[state='hover'] {
+    border-image: url(:/res/tipclose.png);
+}
+
+#close_lb[state='pressed'] {
+    border-image: url(:/res/tipclose.png);
+}
+
+#close_lb[state='select_normal'] {
+    border-image: url(:/res/tipclose.png);
+}
+
+#close_lb[state='select_hover'] {
+    border-image: url(:/res/tipclose.png);
+}
+
+#close_lb[state='select_pressed'] {
+    border-image: url(:/res/tipclose.png);
+}
+
+#apply_sure_wid #sure_btn[state='normal']  {
+    background: #f0f0f0;
+    color: #2cb46e;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#apply_sure_wid #sure_btn[state='hover'] {
+    background: #d2d2d2;
+    color: #2cb46e;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#apply_sure_wid #sure_btn[state='press'] {
+    background: #c6c6c6;
+    color: #2cb46e;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#apply_sure_wid #cancel_btn[state='normal']  {
+    background: #f0f0f0;
+    color: #2e2f30;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#apply_sure_wid #cancel_btn[state='hover'] {
+    background: #d2d2d2;
+    color: #2e2f30;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#apply_sure_wid #cancel_btn[state='press'] {
+    background: #c6c6c6;
+    color: #2e2f30;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#con_user_list {
+    background-color: rgb(247,247,248);
+    border: none;
+}
+
+#con_user_list::item:selected {
+    background-color: #d3d7d4;
+    border: none;
+    outline: none;
+}
+
+#con_user_list::item:hover {
+    background-color: rgb(206,207,208);
+    border: none;
+    outline: none;
+}
+
+#con_user_list::focus {
+    border: none;
+    outline: none;
+}
+
+#GroupTipItem {
+    background-color: #eaeaea;
+    border: none;
+}
+
+#GroupTipItem QLabel{
+    color: #2e2f30;
+    font-size: 12px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border: none;
+}
+
+#new_friend_item {
+     border-bottom: 1px solid #eaeaea;
+}
+
+#LineItem {
+    background-color:rgb(247,247,247);
+    border: none;
+}
+
+#con_user_list {
+    background-color: rgb(247,247,248);
+    border: none;
+}
+
+#con_user_list::item:selected {
+    background-color: #d3d7d4;
+    border: none;
+    outline: none;
+}
+
+#con_user_list::item:hover {
+    background-color: rgb(206,207,208);
+    border: none;
+    outline: none;
+}
+
+#con_user_list::focus {
+    border: none;
+    outline: none;
+}
+
+#GroupTipItem {
+    background-color: #eaeaea;
+    border: none;
+}
+
+#GroupTipItem QLabel{
+    color: #2e2f30;
+    font-size: 12px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border: none;
+}
+
+#new_friend_item {
+     border-bottom: 1px solid #eaeaea;
+}
+
+#LineItem {
+    background-color:rgb(247,247,247);
+    border: none;
+}
+
+#friend_apply_lb {
+    font-family: "Microsoft YaHei";
+    font-size: 18px;
+    font-weight: normal;
+}
+
+#friend_apply_wid {
+    background-color: #f1f2f3;
+    border-bottom: 1px solid #ede9e7;
+}
+
+#apply_friend_list {
+    background-color: #f1f2f3;
+    border-left: 1px solid #ede9e7;
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+}
+
+ApplyFriendItem {
+    background-color: #f1f2f3;
+    border-bottom: 2px solid #dbd9d9;
+}
+
+ApplyFriendItem #user_chat_lb{
+    color: #a2a2a2;
+    font-size: 14px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+}
+
+ApplyFriendItem #addBtn[state='normal'] {
+    background-color: #d3d7d4;
+    color: #2cb46e;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+ApplyFriendItem #addBtn[state='hover'] {
+    background-color: #D3D3D3;
+    color: #2cb46e;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+ApplyFriendItem #addBtn[state='press'] {
+    background-color: #BEBEBE;
+    color: #2cb46e;
+    font-size: 16px; /* 设置字体大小 */
+    font-family: "Microsoft YaHei"; /* 设置字体 */
+    border-radius: 20px; /* 设置圆角 */
+}
+
+#already_add_lb{
+    color:rgb(153,153,153);
+    font-size: 12px;
+    font-family: "Microsoft YaHei";
+}
+
+#user_name_lb{
+    color:rgb(0,0,0);
+    font-size: 16px;
+    font-weight: normal;
+    font-family: "Microsoft YaHei";
+}
