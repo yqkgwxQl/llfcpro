@@ -17,8 +17,8 @@ public:
     ~TcpMgr();
 private:
     TcpMgr();
-    void initHandlers();
     QMap<ReqId,std::function<void(ReqId id,int len,QByteArray data)>> _handlers;
+    void initHandlers();
     void handleMsg(ReqId reqId,int len,QByteArray data);
     QString _host;
     uint16_t _port;
@@ -29,10 +29,10 @@ private:
     quint16 _message_len;
 public slots:
     void slot_tcp_connect(ServerInfo);
-    void slot_send_data(ReqId reqId,QString data);
+    void slot_send_data(ReqId reqId, QByteArray dataBytes);
 signals:
     void sig_con_success(bool bsuccess);
-    void sig_send_data(ReqId reqId,QString data);
+    void sig_send_data(ReqId reqId, QByteArray dataBytes);
     void sig_connection_closed();
     void sig_login_failed(int errCode);
     void sig_switch_chatdlg();
@@ -40,6 +40,9 @@ signals:
     void sig_friend_apply(std::shared_ptr<AddFriendApply>);
     void sig_add_auth_friend(std::shared_ptr<AuthInfo>);
     void sig_auth_rsp(std::shared_ptr<AuthRsp>);
+    void sig_applylist_rsp(const QJsonObject& obj);
+    void sig_friendlist_rsp(const QJsonObject& obj);
+    void sig_receive_text_chat_msg(int from_uid);
 };
 
 #endif // TCPMGR_H

@@ -15,17 +15,17 @@ using message::GetVarifyReq;
 using message::GetVarifyRsp;
 using message::VarifyService;
 
-//其实这里RPConPool可以设为单例，只不过，Singleton的GetInstance必须支持可变参数
-class RPConPool{
+//其实这里VarifyConPool可以设为单例，只不过，Singleton的GetInstance必须支持可变参数
+class VarifyConPool{
 public:
-    RPConPool(size_t poolSize, std::string host, std::string port);
-    ~RPConPool();
+    VarifyConPool(size_t poolSize, std::string host, std::string port);
+    ~VarifyConPool();
     void Close();
     std::unique_ptr<VarifyService::Stub> getConnection();
     void returnConnection(std::unique_ptr<VarifyService::Stub> context);
     //流程：--------
     // 线程A（执行析构）          // 线程B/C/D（在 getConnection 中等待）
-    // ~RPConPool() {
+    // ~VarifyConPool() {
     //     lock(mutex_);              ① 线程A获取锁
     //     Close();                   ② notify_all() 唤醒线程B/C/D
     //     // ...                     ③ 线程B/C/D尝试获取锁 → 失败，阻塞等待
@@ -56,5 +56,5 @@ public:
     GetVarifyRsp GetVarifyCode(std::string email);
 private:
     VarifyGrpcClient();
-    std::unique_ptr<RPConPool> pool_;
+    std::unique_ptr<VarifyConPool> pool_;
 };

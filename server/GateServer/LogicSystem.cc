@@ -1,4 +1,5 @@
 #include "LogicSystem.h"
+#include "Logger.h"
 #include "HttpConnection.h"
 #include "VarifyGrpcClient.h"
 #include "RedisMgr.h"
@@ -49,14 +50,14 @@ LogicSystem::LogicSystem(){
     // void(std::shared_ptr<HttpConnection>) 实际上是bool(std::shared_ptr<HttpConnection>) ,类型不匹配呀？？？？？？？？？？？？？？
     RegPost("/get_varifycode",[](std::shared_ptr<HttpConnection> connection){
         auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
-        std::cout << "receive body is " << body_str << std::endl;
+        LOGI << "receive body is " << body_str << std::endl;
         connection->_response.set(http::field::content_type,"text/json");
         Json::Value root;
         Json::Reader reader;
         Json::Value src_root;
         bool parse_success = reader.parse(body_str,src_root);
         if(!parse_success){
-            std::cout << "Failed to parse JSON data!" << std::endl;
+            LOGI << "Failed to parse JSON data!" << std::endl;
             root["error"] = ErrorCodes::Error_Json;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -64,7 +65,7 @@ LogicSystem::LogicSystem(){
         }
         //判断key值是否存在，即src_root中是否有email这个key值
         if (!src_root.isMember("email")) {
-			std::cout << "email key not found!" << std::endl;
+			LOGI << "email key not found!" << std::endl;
 			root["error"] = ErrorCodes::Error_Json;
 			std::string jsonstr = root.toStyledString();
 			beast::ostream(connection->_response.body()) << jsonstr;
@@ -72,7 +73,7 @@ LogicSystem::LogicSystem(){
 		}
         auto email = src_root["email"].asString();
         GetVarifyRsp rsp = VarifyGrpcClient::GetInstance()->GetVarifyCode(email);
-        std::cout << "email is " << email << std::endl;
+        LOGI << "email is " << email << std::endl;
         root["error"] = rsp.error();
         root["email"] = src_root["email"]; 
         //这里为什么不root["code"] = src_root["code"]; ——————> 验证码不是通过网关服务器发送的，是node.js的VarifyServer发送的网关服务器不用携带验证码
@@ -85,14 +86,14 @@ LogicSystem::LogicSystem(){
 
     RegPost("/user_register",[](std::shared_ptr<HttpConnection> connection){
         auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
-        std::cout << "receive body is " << body_str << std::endl;
+        LOGI << "receive body is " << body_str << std::endl;
         connection->_response.set(http::field::content_type,"text/json");
         Json::Value root;
         Json::Reader reader;
         Json::Value src_root;
         bool parse_success = reader.parse(body_str,src_root);
         if(!parse_success){
-            std::cout << "Failed to parse JSON data!" << std::endl;
+            LOGI << "Failed to parse JSON data!" << std::endl;
             root["error"] = ErrorCodes::Error_Json;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -101,7 +102,7 @@ LogicSystem::LogicSystem(){
 
         //判断key值是否存在，即src_root中是否有email这个key值
         if (!src_root.isMember("user") || !src_root.isMember("email") || !src_root.isMember("passwd") || !src_root.isMember("confirm") || !src_root.isMember("varifycode")) {
-			std::cout << "exsit certain key not found!" << std::endl;
+			LOGI << "exsit certain key not found!" << std::endl;
 			root["error"] = ErrorCodes::Error_Json;
 			std::string jsonstr = root.toStyledString();
 			beast::ostream(connection->_response.body()) << jsonstr;
@@ -113,7 +114,7 @@ LogicSystem::LogicSystem(){
         //防止用一个邮箱收取验证码，用另一个邮箱进行注册
         bool b_get_varify = RedisMgr::GetInstance()->Get(CODEPREFIX + src_root["email"].asString(),varifyCode);
         if(!b_get_varify){
-            std::cout << "get varifyCode failed!" << std::endl;
+            LOGI << "get varifyCode failed!" << std::endl;
             root["error"] = ErrorCodes::VarifyExpired;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -121,7 +122,7 @@ LogicSystem::LogicSystem(){
         }
         //防止你提供虚假的邮箱的验证码
         if(varifyCode != src_root["varifycode"].asString()){
-            std::cout << "varifyCode invalid!" << std::endl;
+            LOGI << "varifyCode invalid!" << std::endl;
             root["error"] = ErrorCodes::VarifyCodeErr;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -132,8 +133,9 @@ LogicSystem::LogicSystem(){
         auto name = src_root["user"].asString();
         auto pwd = src_root["passwd"].asString();
         auto confirm = src_root["confirm"].asString();
+        auto icon = src_root["icon"].asString();
         if (pwd != confirm) {
-            std::cout << "password err " << std::endl;
+            LOGI << "password err " << std::endl;
             root["error"] = ErrorCodes::PasswdErr;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -142,9 +144,9 @@ LogicSystem::LogicSystem(){
 
         //查看数据库中是否有此用户---------------
         // int uid = MysqlMgr_2::GetInstance()->RegUser(name, email, pwd);
-        int uid = MysqlMgr::GetInstance()->RegUser(name, email, pwd);
+        int uid = MysqlMgr::GetInstance()->RegUser(name, email, pwd, icon);
         if (uid == 0 || uid == -1) {
-            std::cout << " user or email exist" << std::endl;
+            LOGI << " user or email exist" << std::endl;
             root["error"] = ErrorCodes::UserExist;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -167,14 +169,14 @@ LogicSystem::LogicSystem(){
 
     RegPost("/reset_pwd",[](std::shared_ptr<HttpConnection> connection){
         auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
-        std::cout << "receive body is " << body_str << std::endl;
+        LOGI << "receive body is " << body_str << std::endl;
         connection->_response.set(http::field::content_type,"text/json");
         Json::Value root;
         Json::Reader reader;
         Json::Value src_root;
         bool parse_success = reader.parse(body_str,src_root);
         if(!parse_success){
-            std::cout << "Failed to parse JSON data!" << std::endl;
+            LOGI << "Failed to parse JSON data!" << std::endl;
             root["error"] = ErrorCodes::Error_Json;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -183,7 +185,7 @@ LogicSystem::LogicSystem(){
 
         //判断key值是否存在，即src_root中是否有email这个key值
         if (!src_root.isMember("user") || !src_root.isMember("email") || !src_root.isMember("passwd")  || !src_root.isMember("varifycode")) {
-			std::cout << "exsit certain key not found!" << std::endl;
+			LOGI << "exsit certain key not found!" << std::endl;
 			root["error"] = ErrorCodes::Error_Json;
 			std::string jsonstr = root.toStyledString();
 			beast::ostream(connection->_response.body()) << jsonstr;
@@ -199,7 +201,7 @@ LogicSystem::LogicSystem(){
         //防止用一个邮箱收取验证码，用另一个邮箱进行注册 / 验证码过期
         bool b_get_varify = RedisMgr::GetInstance()->Get(CODEPREFIX + src_root["email"].asString(),varifyCode);
         if(!b_get_varify){
-            std::cout << "get varifyCode failed!" << std::endl;
+            LOGI << "get varifyCode failed!" << std::endl;
             root["error"] = ErrorCodes::VarifyExpired;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -207,7 +209,7 @@ LogicSystem::LogicSystem(){
         }
         //防止你提供虚假的邮箱的验证码
         if(varifyCode != src_root["varifycode"].asString()){
-            std::cout << "varifyCode invalid!" << std::endl;
+            LOGI << "varifyCode invalid!" << std::endl;
             root["error"] = ErrorCodes::VarifyCodeErr;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -218,7 +220,7 @@ LogicSystem::LogicSystem(){
         bool b_exist = MysqlMgr::GetInstance()->IsExist(name,email);
         // bool b_exist = MysqlMgr::GetInstance()->IsExist_name(name) && MysqlMgr::GetInstance()->IsExist_email(email);
         if(!b_exist){
-            std::cout << "user not exist , you cannot reset pwd!" << std::endl;
+            LOGI << "user not exist , you cannot reset pwd!" << std::endl;
             root["error"] = ErrorCodes::UserNotExist;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -227,7 +229,7 @@ LogicSystem::LogicSystem(){
         //查询数据库判断用户名和邮箱是否匹配---------------
         bool email_valid = MysqlMgr::GetInstance()->CheckEmail(name,email);
         if(!email_valid){
-            std::cout << " user email not match" << std::endl;
+            LOGI << " user email not match" << std::endl;
             root["error"] = ErrorCodes::EmailNotMatch;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -237,14 +239,14 @@ LogicSystem::LogicSystem(){
         // 更新密码为最新密码
         bool b_up = MysqlMgr::GetInstance()->UpdatePwd(name, pwd);
         if (!b_up) {
-            std::cout << " update pwd failed" << std::endl;
+            LOGI << " update pwd failed" << std::endl;
             root["error"] = ErrorCodes::PasswdUpFailed;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
             return true;
         }
 
-        std::cout << "succeed to update password" << pwd << std::endl;
+        LOGI << "succeed to update password" << pwd << std::endl;
         root["error"] = 0;
         root["email"] = src_root["email"];
         root["user"]= src_root["user"].asString();
@@ -258,14 +260,14 @@ LogicSystem::LogicSystem(){
 
     RegPost("/user_login",[](std::shared_ptr<HttpConnection> connection){
         auto body_str = boost::beast::buffers_to_string(connection->_request.body().data());
-        std::cout << "receive body is " << body_str << std::endl;
+        LOGI << "receive body is " << body_str << std::endl;
         connection->_response.set(http::field::content_type,"text/json");
         Json::Value root;
         Json::Reader reader;
         Json::Value src_root;
         bool parse_success = reader.parse(body_str,src_root);
         if(!parse_success){
-            std::cout << "Failed to parse JSON data!" << std::endl;
+            LOGI << "Failed to parse JSON data!" << std::endl;
             root["error"] = ErrorCodes::Error_Json;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -274,7 +276,7 @@ LogicSystem::LogicSystem(){
 
         //判断key值是否存在，即src_root中是否有email这个key值
         if (!src_root.isMember("email") || !src_root.isMember("passwd")) {
-			std::cout << "exsit certain key not found!" << std::endl;
+			LOGI << "exsit certain key not found!" << std::endl;
 			root["error"] = ErrorCodes::Error_Json;
 			std::string jsonstr = root.toStyledString();
 			beast::ostream(connection->_response.body()) << jsonstr;
@@ -288,7 +290,7 @@ LogicSystem::LogicSystem(){
         //查询数据库判断此email是否已在数据库中 ——> 即是否此用户已存在
         bool b_exist = MysqlMgr::GetInstance()->IsExist_email(email);
         if(!b_exist){
-            std::cout << "email is not exist!" << std::endl;
+            LOGI << "email is not exist!" << std::endl;
             root["error"] = ErrorCodes::EmailNotExist;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -301,7 +303,7 @@ LogicSystem::LogicSystem(){
                 userInfo.name = ret->getString("name");
                 userInfo.uid = ret->getInt("uid");*/
         if(!pwd_valid){
-            std::cout << " email and pwd not match" << std::endl;
+            LOGI << " email and pwd not match" << std::endl;
             root["error"] = ErrorCodes::PasswdInvalid;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
@@ -311,18 +313,20 @@ LogicSystem::LogicSystem(){
         //查询StatusServer找到合适的连接
         auto reply = StatusGrpcClient::GetInstance()->GetChatServer(userInfo.uid);
         if (reply.error()) {
-            std::cout << " grpc get chat server failed, error is " << reply.error()<< std::endl;
+            LOGI << " grpc get chat server failed, error is " << reply.error()<< std::endl;
             root["error"] = ErrorCodes::RPCStatusFailed;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
             return true;
         }
 
-        std::cout << "succeed to load userinfo uid is " << userInfo.uid << std::endl;
+        LOGI << "succeed to load userinfo uid is " << userInfo.uid << std::endl;
         root["error"] = 0;
         root["user"] = userInfo.name;
         root["uid"] = userInfo.uid;
         root["token"] = reply.token();
+        LOGI << reply.token();
+        LOGI << "------------------------" << std::endl;
         root["host"] = reply.host();
         root["port"] = reply.port();
         std::string jsonstr = root.toStyledString();

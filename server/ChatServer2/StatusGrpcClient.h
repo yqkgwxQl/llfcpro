@@ -36,7 +36,7 @@ private:
     std::condition_variable _cond;
 };
 class StatusGrpcClient: public Singleton<StatusGrpcClient>{
-    friend class Singleton<StatusGrpcClient>
+    friend class Singleton<StatusGrpcClient>;
 public:
     ~StatusGrpcClient();
     LoginRsp Login(int uid,std::string& token);

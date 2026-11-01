@@ -5,7 +5,10 @@
 #include <QScrollBar>
 #include "usermgr.h"
 #include <QFontMetrics>
+#include <QJsonObject>
+#include "tcpmgr.h"
 
+// ？？？？？？？？？？？？？？？？？？这段代码有点恶心，暂时不作处理；以后有时间再慢慢看看，慢慢理解
 /*
 
 ┌───────────────────────────────────────┐
@@ -365,6 +368,31 @@ void ApplyFriend::SlotApplyCancel()
 void ApplyFriend::SlotApplySure()
 {
     qDebug()<<"Slot Apply Sure called" ;
+    //发送请求逻辑
+    QJsonObject jsonObj;
+    auto uid = UserMgr::GetInstance()->GetUid();
+    jsonObj["uid"] = uid;       // 申请者的uid，即我自己的uid
+    auto name = ui->name_ed->text();
+    if(name.isEmpty()){
+        name = ui->name_ed->placeholderText();
+    }
+
+    jsonObj["desc"] = name;  //我对我自己的描述，eg:"你好，我是算机2403王振凯"
+
+    auto bakname = ui->back_ed->text();
+    if(bakname.isEmpty()){
+        bakname = ui->back_ed->placeholderText();
+    }
+
+    //？？？？？？？？？？？？？？？？？？？？？其实我觉得都不用传bakname,这个bakname只在我本地客户端有用，给远端别的ChatServer看有用吗？没用。
+    jsonObj["bakname"] = bakname;  //我给对方起的备注名
+    jsonObj["touid"] = _si->_uid;   //被申请者的id，即我想要申请谁
+
+    QJsonDocument doc(jsonObj);
+    QByteArray jsonData = doc.toJson(QJsonDocument::Compact);
+
+    //发送tcp请求给chat server
+    emit TcpMgr::GetInstance()->sig_send_data(ReqId::ID_ADD_FRIEND_REQ, jsonData);
     this->hide();
     deleteLater();
 }

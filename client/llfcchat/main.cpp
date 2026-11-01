@@ -7,10 +7,12 @@
 #include <QString>
 #include <QDir>
 #include <QSettings>
+#include "logger.h"
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+    Logger::GetInstance();
     QFile qss(":/style/stylesheet.qss");
     if(qss.open(QFile::ReadOnly)){
         qDebug("open success");

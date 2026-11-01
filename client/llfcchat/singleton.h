@@ -26,7 +26,7 @@ public:
         std::cout << _instance.get();
     }
     ~Singleton(){
-        std::cout << "this is singleton destruct" << std::endl;
+        qDebug() << "this is singleton destruct";
     }
 };
 

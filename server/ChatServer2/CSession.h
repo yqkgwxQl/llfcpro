@@ -23,22 +23,21 @@ class CSession: public std::enable_shared_from_this<CSession>{
 public:
     CSession(boost::asio::io_context& ioc,std::shared_ptr<CServer>);
     ~CSession();
-    //套接字不可复制
     tcp::socket& GetSocket();
     std::string& GetSessionId();
-    void Start();
+    void SetUserId(int uid);
+    std::size_t GetUserId();
+    std::shared_ptr<CServer> GetServer();
+    void Start();  
+    void Send(short msg_id,std::string msg_data);
+    void Close();
+private:
     using handler = std::function<void(const boost::system::error_code& ec, std::size_t bytesTransfered)>;
     void AsyncReadHead();
     void AsyncReadBody(int msg_len);
-    void Send(short msg_id,std::string msg_data);
-    void SetUserId(int uid);
-    std::size_t GetUserId();
-
-private:
-    void asyncReadFull(std::size_t len,handler);
-    void asyncReadLen(std::size_t has_read_len, std::size_t total_len,handler);
+    void AsyncReadFull(std::size_t len,handler);
+    void AsyncReadLen(std::size_t has_read_len, std::size_t total_len,handler);
     void HandleWrite(const boost::system::error_code& error, std::shared_ptr<CSession> shared_self);
-    void Close();
     // void DealExceptionSession();
     std::string _session_id;
     std::size_t _user_uid;
@@ -49,6 +48,15 @@ private:
     char _data[MAX_LENGTH];
     // bool _b_close;
     //session 锁
+    /*我的问题是一个session不是只占一个线程吗？为什么还有用锁呢？
+    那锁是给谁加的？—— 给"别的线程"加的
+        Close() 的调用方不止 owner 线程。你项目里现在有 3 个调用点：
+
+        调用点	                                        所在线程	    是否 owner
+        CSession::AsyncReadHead 的 ec 分支	            池线程	        ✅ 是
+        CSession::AsyncReadBody 的 ec 分支	            池线程	        ✅ 是
+        CServer::ClearSession 里的 session->Close()	    谁调谁就是	    ❌ 可能不是
+    */
 	std::mutex _session_mtx;
     /*如果没有锁，两个线程同时进 Close()：一个在 _socket.close()，另一个也 _socket.close()，虽然不会崩溃但不够干净。
     _session_mtx 保证同一时刻只有一个线程在执行关闭操作。*/

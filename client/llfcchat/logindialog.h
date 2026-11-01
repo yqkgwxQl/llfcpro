@@ -12,7 +12,6 @@ class LoginDialog;
 class LoginDialog : public QDialog
 {
     Q_OBJECT
-
 public:
     explicit LoginDialog(QWidget *parent = nullptr);
     ~LoginDialog();
@@ -30,14 +29,16 @@ private slots:
 private:
     void initHttpHandlers();
     QMap<ReqId,std::function<void(const QJsonObject&)>> _handlers;
+    //绘制登录界面的头像
     void initHead();
-    void showTip(QString tip,bool b_ok);
-    QString checkEmailValid();
-    bool checkPwdValid();
     bool enableBtn(bool);
+
     QMap<TipErr,QString> _tip_errs;
+    void showTip(QString tip,bool b_ok);
     void AddTipErr(TipErr tip_err, QString tip);
     void DelTipErr(TipErr tip_err);
+    QString checkEmailValid();
+    bool checkPwdValid();
 
     int _uid;
     QString _token;

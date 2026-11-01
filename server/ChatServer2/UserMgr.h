@@ -20,7 +20,7 @@ public:
     ~UserMgr();
     std::shared_ptr<CSession> GetSession(int uid);
     void SetUserSession(std::size_t uid, std::shared_ptr<CSession> session);
-    void RmvUserSession(std::size_t uid);
+    bool RmvUserSession(std::size_t uid, const std::string& session_id);
 
 private:
     UserMgr();

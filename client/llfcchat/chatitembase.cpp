@@ -26,6 +26,11 @@ ChatItemBase::ChatItemBase(ChatRole role,QWidget* parent)
     _pIconLabel->setFixedSize(42,42);
 
     _pBubble = new QWidget();
+
+    //状态图标（16x16，只有自己发的消息才显示）
+    _pStatusLabel = new QLabel();
+    _pStatusLabel->setFixedSize(16,16);
+    _pStatusLabel->setScaledContents(true);
                                         //40:最小长度，20：最小宽度，QSizePolicy::Expanding ——> 水平策略，QSizePolicy::Minimum ——> 垂直策略
     QSpacerItem* pSpacer = new QSpacerItem(40,20,QSizePolicy::Expanding,QSizePolicy::Minimum);
     QGridLayout* pGridLayout = new QGridLayout();
@@ -35,16 +40,40 @@ ChatItemBase::ChatItemBase(ChatRole role,QWidget* parent)
     pGridLayout->setHorizontalSpacing(3);
     pGridLayout->setVerticalSpacing(3);
 
+    // if(_role == ChatRole::Self){
+    //     _pNameLabel->setContentsMargins(0,0,8,0);
+    //     _pNameLabel->setAlignment(Qt::AlignRight);
+    //     pGridLayout->addWidget(_pNameLabel,0,1,1,1);
+    //     pGridLayout->addWidget(_pIconLabel,0,2,2,1,Qt::AlignTop);
+    //     pGridLayout->addWidget(_pBubble,1,1,1,1);
+    //     pGridLayout->addItem(pSpacer,1,0,1,1);
+    //     pGridLayout->setColumnStretch(0,2);
+    //     pGridLayout->setColumnStretch(1,3);
+    // }else{
+    //     _pNameLabel->setContentsMargins(8,0,0,0);
+    //     _pNameLabel->setAlignment(Qt::AlignLeft);
+    //     pGridLayout->addWidget(_pNameLabel,0,1,1,1);
+    //     pGridLayout->addWidget(_pIconLabel,0,0,2,1,Qt::AlignTop);
+    //     pGridLayout->addWidget(_pBubble,1,1,1,1);
+    //     pGridLayout->addItem(pSpacer,1,2,1,1);
+    //     pGridLayout->setColumnStretch(2,2);
+    //     pGridLayout->setColumnStretch(1,3);
+    // }
     if(_role == ChatRole::Self){
+        //列：0 左侧弹簧 | 1 状态图标 | 2 名字+气泡 | 3 头像
         _pNameLabel->setContentsMargins(0,0,8,0);
         _pNameLabel->setAlignment(Qt::AlignRight);
-        pGridLayout->addWidget(_pNameLabel,0,1,1,1);
-        pGridLayout->addWidget(_pIconLabel,0,2,2,1,Qt::AlignTop);
-        pGridLayout->addWidget(_pBubble,1,1,1,1);
+        pGridLayout->addWidget(_pNameLabel,0,2,1,1);
+        pGridLayout->addWidget(_pIconLabel,0,3,2,1,Qt::AlignTop);
         pGridLayout->addItem(pSpacer,1,0,1,1);
+        pGridLayout->addWidget(_pStatusLabel,1,1,1,1,Qt::AlignCenter);
+        pGridLayout->addWidget(_pBubble,1,2,1,1);
         pGridLayout->setColumnStretch(0,2);
-        pGridLayout->setColumnStretch(1,3);
+        pGridLayout->setColumnStretch(1,0);   //状态图标固定大小
+        pGridLayout->setColumnStretch(2,3);   //名字+气泡是主要拉伸区
+        pGridLayout->setColumnStretch(3,0);
     }else{
+        //对方的消息不需要状态图标
         _pNameLabel->setContentsMargins(8,0,0,0);
         _pNameLabel->setAlignment(Qt::AlignLeft);
         pGridLayout->addWidget(_pNameLabel,0,1,1,1);
@@ -54,6 +83,7 @@ ChatItemBase::ChatItemBase(ChatRole role,QWidget* parent)
         pGridLayout->setColumnStretch(2,2);
         pGridLayout->setColumnStretch(1,3);
     }
+
 
     this->setLayout(pGridLayout);
 }
@@ -71,4 +101,19 @@ void ChatItemBase::setWidget(QWidget *w){
     grid_layout->replaceWidget(_pBubble,w);  //把网格布局中 _pBubble 的位置让给 w，然后 _pBubble 被踢出布局。
     delete _pBubble;
     _pBubble = w;
+}
+
+void ChatItemBase::setStatus(MsgStatus status){
+    if(status == MsgStatus::UN_READ){
+        _pStatusLabel->setPixmap(QPixmap(":/res/unread.png"));
+        return;
+    }
+    if(status == MsgStatus::SEND_FAILED){
+        _pStatusLabel->setPixmap(QPixmap(":/res/send_fail.png"));
+        return;
+    }
+    if(status == MsgStatus::READED){
+        _pStatusLabel->setPixmap(QPixmap(":/res/readed.png"));
+        return;
+    }
 }

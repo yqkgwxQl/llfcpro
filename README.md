@@ -21,6 +21,7 @@
 - [功能介绍](#功能介绍)
 - [快速开始](#快速开始)
 - [开发环境配置](#开发环境配置)
+- [配置文件说明](#配置文件说明)
 - [服务部署说明](#服务部署说明)
 - [性能测试](#性能测试)
 - [面试考察点](#面试考察点)
@@ -484,11 +485,41 @@ DELIMITER ;
 
 ---
 
+## 配置文件说明
+
+本仓库**不包含任何真实的配置文件**，只提供 `.example` 模板（真实配置已被 `.gitignore` 忽略，不会提交）。构建或运行前请先复制模板、去掉 `.example` 后缀，再填入你自己的参数：
+
+| 模板文件 | 复制为 | 用途 |
+|---|---|---|
+| `client/llfcchat/config.ini.example` | `client/llfcchat/config.ini` | 客户端连接 Gateway 的地址与端口 |
+| `server/GateServer/config.ini.example` | `server/GateServer/config.ini` | 网关端口 + MySQL / Redis 连接 |
+| `server/StatusServer/config.ini.example` | `server/StatusServer/config.ini` | 状态服务端口 + MySQL / Redis 连接 |
+| `server/ChatServer1/config.ini.example` | `server/ChatServer1/config.ini` | 聊天服务 1 的 TCP / gRPC 端口与依赖服务地址 |
+| `server/ChatServer2/config.ini.example` | `server/ChatServer2/config.ini` | 聊天服务 2 的同上配置 |
+| `server/VarifyServer/config.example.json` | `server/VarifyServer/config.json` | 邮箱 SMTP 授权码、MySQL、Redis 连接 |
+
+一键复制（Windows PowerShell，在仓库根目录执行）：
+
+```powershell
+Copy-Item client\llfcchat\config.ini.example          client\llfcchat\config.ini
+Copy-Item server\GateServer\config.ini.example       server\GateServer\config.ini
+Copy-Item server\StatusServer\config.ini.example     server\StatusServer\config.ini
+Copy-Item server\ChatServer1\config.ini.example      server\ChatServer1\config.ini
+Copy-Item server\ChatServer2\config.ini.example      server\ChatServer2\config.ini
+Copy-Item server\VarifyServer\config.example.json    server\VarifyServer\config.json
+```
+
+> ⚠️ 模板里的 `<地址>`、`<端口>`、`<密码>`、`your_name@163.com`、`REPLACE_WITH_*` 都是占位符，必须替换成实际值，否则服务启动时会解析失败。
+>
+> `config.ini` / `config.json` 已被 `.gitignore` 忽略，填好的真实配置**不会被提交**，请不要用 `git add -f` 强制添加。
+
+---
+
 ## 服务部署说明
 
 ### 配置文件
 
-每个服务都有独立的 `config.ini` 或 `config.json`，配置格式如下（请替换为自己的实际参数）：
+每个服务都有独立的 `config.ini` 或 `config.json`。仓库只提供 `.example` 模板，请先按上一节【配置文件说明】复制改名，再把占位符替换成自己的实际参数（格式参考如下）：
 
 ```ini
 # GateServer/config.ini（格式参考）
@@ -516,13 +547,20 @@ Passwd = <密码>
 // VarifyServer/config.json（格式参考）
 {
     "email": {
-      "user": "<你的邮箱地址>",
-      "pass": "<SMTP授权码>"
+      "user": "your_name@163.com",
+      "pass": "REPLACE_WITH_SMTP_AUTH_CODE"
+    },
+    "mysql": {
+      "host": "127.0.0.1",
+      "port": 3308,
+      "user": "root",
+      "passwd": "REPLACE_WITH_MYSQL_PASSWORD",
+      "schema": "llfc"
     },
     "redis": {
-      "host": "<地址>",
-      "port": <端口>,
-      "passwd": "<密码>"
+      "host": "127.0.0.1",
+      "port": 6380,
+      "passwd": "REPLACE_WITH_REDIS_PASSWORD"
     }
 }
 ```

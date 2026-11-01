@@ -14,6 +14,7 @@ private slots:
 
 signals:
     void sig_show_search(bool);
+    void sig_loading_apply_list();
 };
 
 #endif // APPLYFRIENDLIST_H

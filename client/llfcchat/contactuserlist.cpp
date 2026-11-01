@@ -11,6 +11,7 @@
 #include "grouptipitem.h"
 #include <QWheelEvent>
 #include <QScrollBar>
+#include "userdata.h"
 
 ContactUserList::ContactUserList(QWidget *parent)
 {
@@ -24,13 +25,13 @@ ContactUserList::ContactUserList(QWidget *parent)
     addContactUserList();
     //连接点击的信号和槽
     connect(this, &QListWidget::itemClicked, this, &ContactUserList::slot_item_clicked);
-    //    //链接对端同意认证后通知的信号
-    //    connect(TcpMgr::GetInstance().get(), &TcpMgr::sig_add_auth_friend,this,
-    //            &ContactUserList::slot_add_auth_firend);
+    //链接对端同意认证后通知的信号
+       connect(TcpMgr::GetInstance().get(), &TcpMgr::sig_add_auth_friend,this,
+               &ContactUserList::slot_add_auth_friend);
 
-    //    //链接自己点击同意认证后界面刷新
-    //    connect(TcpMgr::GetInstance().get(), &TcpMgr::sig_auth_rsp,this,
-    //            &ContactUserList::slot_auth_rsp);
+    //链接自己点击同意认证后界面刷新
+       connect(TcpMgr::GetInstance().get(), &TcpMgr::sig_auth_rsp,this,
+               &ContactUserList::slot_auth_rsp);
 }
 
 void ContactUserList::ShowRedPoint(bool bshow /*= true*/)
@@ -44,7 +45,8 @@ void ContactUserList::addContactUserList()
     QListWidgetItem *item = new QListWidgetItem;
     item->setSizeHint(groupTip->sizeHint());
     this->addItem(item);
-    this->setItemWidget(item, groupTip);
+    this->setItemWidget(item, groupTip);        //把groupTip贴到item上（注意：所有权转移：QListWidget 会成为 groupTip 的父对象，
+    // 列表销毁时自动 delete 它。你不需要（也不应该）自己 delete。一行只能贴一个 widget：重复调用会删掉上一个）
     item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
 
     _add_friend_item = new ConUserItem();
@@ -73,7 +75,6 @@ void ContactUserList::addContactUserList()
     // 创建QListWidgetItem，并设置自定义的widget
     for(int i = 0; i < 13; i++){
         int randomValue = QRandomGenerator::global()->bounded(100); // 生成0到99之间的随机整数
-        int str_i = randomValue%strs.size();
         int head_i = randomValue%heads.size();
         int name_i = randomValue%names.size();
 
@@ -167,4 +168,44 @@ void ContactUserList::slot_item_clicked(QListWidgetItem *item)
         emit sig_switch_friend_info_page();
         return;
     }
+}
+
+void ContactUserList::slot_add_auth_friend(std::shared_ptr<AuthInfo> auth_info){
+    qDebug() << "slot_add_auth_firend called";
+
+    bool isHasFriend = UserMgr::GetInstance()->AreadyFriend(auth_info->_uid);
+    if(isHasFriend){
+        qDebug() << "[ContactUserList::slot_add_auth_friend]:has friend, not need add_auth_friend";
+        return;
+    }
+    auto* con_user_wid = new ConUserItem();
+    con_user_wid->SetInfo(auth_info);
+    QListWidgetItem* item = new QListWidgetItem;
+    item->setSizeHint(con_user_wid->sizeHint());
+
+    //获取 groupitem的索引
+    int index = this->row(_groupitem);
+    this->insertItem(index + 1,item);
+    this->setItemWidget(item,con_user_wid);
+}
+
+void ContactUserList::slot_auth_rsp(std::shared_ptr<AuthRsp> auth_rsp){
+    qDebug() << "slot_auth_rsp called";
+
+    // bool isHasFriend = UserMgr::GetInstance()->AreadyFriend(auth_rsp->_uid);
+    // if(isHasFriend){
+    //     qDebug() << "[ContactUserList::slot_auth_rsp]:has friend, not need add_auth_friend";
+    //     return;
+    // }
+    auto* con_user_wid = new ConUserItem();
+    con_user_wid->SetInfo(auth_rsp);
+    QListWidgetItem* item = new QListWidgetItem;
+    item->setSizeHint(con_user_wid->sizeHint());
+
+        //获取 groupitem的索引
+    int index = this->row(_groupitem);
+    this->insertItem(index + 1,item);
+    this->setItemWidget(item,con_user_wid);
+    //取消红点显示
+    this->ShowRedPoint(false);
 }

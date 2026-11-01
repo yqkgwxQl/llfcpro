@@ -767,3 +767,11 @@ ApplyFriendItem #addBtn[state='press'] {
     font-weight: normal;
     font-family: "Microsoft YaHei";
 }
+
+/* 26_9_12 改进*/
+#red_point {
+    border-image: url(:/res/red_point.png);
+    /* 若图片本身不是小圆点，用下面两行裁成小圆 */
+    /* border-radius: 5px; */
+    /* background: #fa5151; */
+}

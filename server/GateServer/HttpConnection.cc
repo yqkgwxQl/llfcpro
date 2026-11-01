@@ -1,4 +1,5 @@
 #include "HttpConnection.h"
+#include "Logger.h"
 #include <iostream>
 #include "const.h"
 #include "LogicSystem.h"
@@ -99,7 +100,7 @@ void HttpConnection::Start(){
     http::async_read(_socket,_buffer,_request,[self](beast::error_code ec,std::size_t bytes_transferred){
         try{
             if(ec){
-                std::cout << "http read err is " << ec.what() << std::endl;
+                LOGI << "http read err is " << ec.what() << std::endl;
                 return;
             }
             boost::ignore_unused(bytes_transferred); 
@@ -108,7 +109,7 @@ void HttpConnection::Start(){
             self->HandleReqest();
             //因为我使用http请求设置为短链接，所以每个HttpConnection只负责 ————> 接收一个请求，然后返回一个响应，然后断开连接
         }catch (std::exception& e){
-            std::cerr << "Exception is " << e.what() << std::endl;
+            LOGE << "Exception is " << e.what() << std::endl;
         } //这里并没有处理远端关闭可能出现的问题？ ————>  if远端关闭了，说明远端并未发送请求，直接执行异常逻辑，没有问题
     });
 }

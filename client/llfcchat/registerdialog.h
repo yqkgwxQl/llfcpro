@@ -33,10 +33,10 @@ private:
     //引用常量，不能用左值引用
     // void showTip(QString& email_path);
     void initHttpHandlers();
-    void showTip(QString tip,bool b_ok);
     QMap<ReqId,std::function<void(const QJsonObject&)>> _handlers;
     QMap<TipErr,QString> _tip_errs;
     // QQueue<TipErr,QString> _tip_errs;
+    void showTip(QString tip,bool b_ok);
     void AddTipErr(TipErr tip_err, QString tip);
     void DelTipErr(TipErr tip_err);
 

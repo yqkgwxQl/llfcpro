@@ -5,10 +5,9 @@
 #include "AsioIOServicePool.h"
 #include "RedisMgr.h"
 #include <assert.h>
+#include "Logger.h"
 
 void TestRedisMgr() {
-    // assert(RedisMgr::GetInstance()->Connect("127.0.0.1", 6380));
-    // assert(RedisMgr::GetInstance()->Auth("233233"));
     assert(RedisMgr::GetInstance()->Set("blogwebsite","llfc.club"));
     std::string value="";
     assert(RedisMgr::GetInstance()->Get("blogwebsite", value) );
@@ -31,6 +30,7 @@ void TestRedisMgr() {
 }
 
 int main(){
+    Logger::Init("gateserver", LogLevel::Debug, true, "logs");
     // TestRedisMgr();
     ConfigMgr& gCfgMgr = ConfigMgr::GetInstance();
     std::string gate_port_str = gCfgMgr["GateServer"]["Port"];
@@ -52,10 +52,11 @@ int main(){
             // AsioIOServicePool::GetInstance()->Stop(); //停止线程池中的所有io_context
         });
         std::make_shared<CServer>(ioc,gate_port)->Start();
-		std::cout << "Gate Server listen on port: " << gate_port << std::endl;
+		LOGI << "Gate Server listen on port: " << gate_port << std::endl;
         ioc.run();
     }catch(std::exception& e){
-        std::cerr << "Exception is :" << e.what() << std::endl;
+        LOGE << "Exception is :" << e.what() << std::endl;
         return EXIT_FAILURE; //返回错误码
     }
+    Logger::GetInstance()->shutdown();
 }

@@ -49,7 +49,7 @@ void BubbleFrame::paintEvent(QPaintEvent* event){
         //画三角  12,20,14
         QPointF points[3] = {
             QPointF(bk_rect.x(),12),
-            QPointF(bk_rect.x() ,10+WIDTH_SANJIAO +2),
+            QPointF(bk_rect.x() ,12+WIDTH_SANJIAO +2),
             QPointF(bk_rect.x() - WIDTH_SANJIAO,10+WIDTH_SANJIAO-WIDTH_SANJIAO/2)
         };
         painter.drawPolygon(points,3);

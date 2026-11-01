@@ -31,7 +31,8 @@ private:
     // std::string _host;
     short _port;
     tcp::acceptor _acceptor; 
-    ///这个由session_id 和 csession 构成的_sessions有什么作用，它的作用会被UseMgr取代吗????????????????
+    ///这个由session_id 和 csession 构成的_sessions有什么作用，它的作用会被
+    //UseMgr(std::unordered_map<std::size_t, std::shared_ptr<CSession>> _uid_to_session;)取代吗？？？？？？？？？？？？？？
     std::map<std::string,std::shared_ptr<CSession>> _sessions;
     std::mutex _mutex;
 };

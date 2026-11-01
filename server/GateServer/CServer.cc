@@ -1,5 +1,6 @@
 
 #include "CServer.h"
+#include "Logger.h"
 #include <iostream>
 #include "HttpConnection.h"
 #include "AsioIOServicePool.h"
@@ -20,7 +21,7 @@ void CServer::Start(){
         try{    
             //if 有错误，直接掠过，为下一个连接提供服务
             if(ec){
-                std::cerr << "_acceptor 接收出现错误，现接收下一个 " << std::endl;
+                LOGE << "_acceptor 接收出现错误，现接收下一个 " << std::endl;
                 self->Start();
                 return;
             }
@@ -28,7 +29,7 @@ void CServer::Start(){
             new_con->Start();
             self->Start();
         }catch(std::exception& e){
-            std::cerr << "Exception is " << e.what() << std::endl;
+            LOGE << "Exception is " << e.what() << std::endl;
             self->Start();
         }
     });

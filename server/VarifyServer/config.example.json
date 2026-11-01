@@ -1,0 +1,18 @@
+{
+    "email": {
+      "user": "your_name@163.com",
+      "pass": "REPLACE_WITH_SMTP_AUTH_CODE"
+    },
+    "mysql": {
+      "host": "127.0.0.1",
+      "port": 3308,
+      "user": "root",
+      "passwd": "REPLACE_WITH_MYSQL_PASSWORD",
+      "schema": "llfc"
+    },
+    "redis": {
+      "host": "127.0.0.1",
+      "port": 6380,
+      "passwd": "REPLACE_WITH_REDIS_PASSWORD"
+    }
+}

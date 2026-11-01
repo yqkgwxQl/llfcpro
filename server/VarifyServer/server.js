@@ -5,6 +5,7 @@ const const_module = require('./const')
 const { v4: uuidv4 } = require('uuid');
 const emailModule = require('./email');
 const redis_module = require('./redis')
+const config_module = require('./config')
 
 async function GetVarifyCode(call, callback) {
     console.log("email is ", call.request.email)
@@ -33,7 +34,7 @@ async function GetVarifyCode(call, callback) {
         let text_str =  '您的验证码为'+ uniqueId +'请三分钟内完成注册'
         //发送邮件
         let mailOptions = {
-            from: 'yqkgwxql@163.com',
+            from: config_module.email_user,
             to: call.request.email,
             subject: '验证码',
             text: text_str,
@@ -64,7 +65,7 @@ async function GetVarifyCode(call, callback) {
 //         let text_str =  '您的验证码为'+ uniqueId +'请三分钟内完成注册'
 //         //发送邮件
 //         let mailOptions = {
-//             from: 'yqkgwxql@163.com',
+//             from: '...',
 //             to: call.request.email,
 //             subject: '验证码',
 //             text: text_str,
@@ -120,7 +121,7 @@ async function GetVarifyCode(call, callback) {
         
         // 构造邮件参数
         let mailOptions = {
-            from: 'yqkgwxql@163.com',             // 发件人
+            from: '...',             // 发件人
             to: call.request.email,               // 收件人（从请求中获取）
             subject: '验证码',                      // 邮件主题
             text: text_str,                        // 邮件正文

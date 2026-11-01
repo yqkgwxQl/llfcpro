@@ -54,17 +54,17 @@ private:
 class UserInfo;
 class ChatGrpcClient: public Singleton<ChatGrpcClient>{
     friend class Singleton<ChatGrpcClient>;
+public:
     // 通知对方服务器：有人申请加好友
     AddFriendRsp NotifyAddFriend(const std::string&server_name,AddFriendReq req);
     //通知对方服务器：好友申请已通过
-    AuthFriendRsp NotifyAuthFriend(std::string server_ip, const AuthFriendReq& req);
+    AuthFriendRsp NotifyAuthFriend(std::string& server_name, const AuthFriendReq& req);
     //跨服务器获取用户基本信息
     bool GetBaseInfo(std::string base_key, int uid, std::shared_ptr<UserInfo>& userinfo);
     // 转发聊天消息到对方服务器
-    TextChatMsgRsp NotifyTextChatMsg(std::string server_ip, const TextChatMsgReq& req, const Json::Value& rtvalue);
-public:
+    TextChatMsgRsp NotifyTextChatMsg(std::string server_name, const TextChatMsgReq& req, const Json::Value& rtvalue); //？？？我感觉rtvalue没有任何作用
     ~ChatGrpcClient();
 private:
     ChatGrpcClient();
-    std::unordered_map<std::string,std::unique_ptr<ChatConPool>> _pools;
+    std::unordered_map<std::string, std::unique_ptr<ChatConPool>> _pools;
 };

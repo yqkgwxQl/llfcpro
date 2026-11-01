@@ -7,19 +7,22 @@
 #include <_mingw_mac.h>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QRandomGenerator>
 
 RegisterDialog::RegisterDialog(QWidget *parent)
     : QDialog(parent),_countdown(5)
     , ui(new Ui::RegisterDialog)
 {
     ui->setupUi(this);
+    //1< pwdEdit,confirmEdit都设置为不显示  ------------------------
     ui->pwdEdit->setEchoMode(QLineEdit::Password);
     ui->confirmEdit->setEchoMode(QLineEdit::Password);
     /*指向界面上那个用来显示提示信息的标签控件（通常是一个 QLabel）。setProperty("state", "normal")：
     这是 Qt 的动态属性机制。它的作用是给这个控件设置（或修改）一个名为 "state" 的自定义属性，并将它的值设为 "normal"*/
     ui->errTip->setProperty("state","normal");
     repolish(ui->errTip);
-    //--------单例(使用时自动创建唯一一个)，取原指针
+    //.get ——> 单例(使用时自动创建唯一一个)，取原指针
+    //2< 连接信号和槽  --------------------------
     connect(HttpMgr::GetInstance().get(),&HttpMgr::sig_reg_mod_finish,this,&RegisterDialog::slot_reg_mod_finish);
     initHttpHandlers();
 
@@ -40,9 +43,11 @@ RegisterDialog::RegisterDialog(QWidget *parent)
         checkVarifyValid();
     });
     // connect(ui->userEdit,&QLineEdit::editingFinished,this,&RegisterDialog::slot_checkUserValid);
+    //3 < 密码是否可是标签的设置
+        //1.把放到上面的标签设置为小手
     ui->pwdVisbleLabel->setCursor(Qt::PointingHandCursor);
     ui->confirmVisbleLabel->setCursor(Qt::PointingHandCursor);
-
+        //2.设置6种状态
     ui->pwdVisbleLabel->SetState("invisible","invisible_hover","invisible_hover","visible","visible_hover","visible_hover");
     ui->confirmVisbleLabel->SetState("invisible","invisible_hover","invisible_hover","visible","visible_hover","visible_hover");
 
@@ -65,7 +70,7 @@ RegisterDialog::RegisterDialog(QWidget *parent)
         }
     });
 
-    // 创建定时器
+    // 4 < 创建定时器
     _countdown_timer = new QTimer(this);
     connect(_countdown_timer,&QTimer::timeout,[this](){
         if(_countdown <= 0){
@@ -130,15 +135,6 @@ void RegisterDialog::on_getCode_clicked(){
                                             ReqId::ID_GET_VERIFY_CODE,Modules::REGISTERMOD);
     }
 }
-void RegisterDialog::showTip(QString tip,bool b_ok){
-    if(!b_ok){
-        ui->errTip->setProperty("state","err");
-    }else{
-        ui->errTip->setProperty("state","normal");
-    }
-    ui->errTip->setText(tip);
-    repolish(ui->errTip);
-}
 
 
 void RegisterDialog::slot_reg_mod_finish(ReqId id,QString res,ErrorCodes err){
@@ -146,8 +142,7 @@ void RegisterDialog::slot_reg_mod_finish(ReqId id,QString res,ErrorCodes err){
         showTip(tr("网络请求错误"),false);
         return;
     }
-
-    //res:QString -> QByteArray -> json
+    //QString 内部是 UTF-16（Unicode），而 JSON 规范（RFC 8259）规定：JSON 文本在网络上必须以 UTF-8 编码传输，Qt 的 fromJson 也按 UTF-8 解读你给的字节
     //QJsonDocument ——> 可理解为 ... .json文件   res.toUtf8() ——> 把 QString 转换成标准的 QByteArray
     QJsonDocument jsonDoc = QJsonDocument::fromJson(res.toUtf8());
     //json解析错误
@@ -159,8 +154,6 @@ void RegisterDialog::slot_reg_mod_finish(ReqId id,QString res,ErrorCodes err){
         showTip(tr("json解析失败"),false);
         return;
     }
-
-    //QJsonDocument：代表整个 JSON 文档    包括json对象和json数组
     QJsonObject jsonObj = jsonDoc.object();
     //回调
     _handlers[id](jsonObj);
@@ -175,6 +168,13 @@ void RegisterDialog::on_confirmBtn_clicked()
         json_obj["user"] = ui->userEdit->text();
         json_obj["email"] = ui->emailEdit->text();
         json_obj["passwd"] = xorString(ui->pwdEdit->text());
+        //---------------------------------？？？？？？？？？？？？这里未来一定会改进
+        json_obj["sex"] = 0;
+        int randomValue = QRandomGenerator::global()->bounded(100);
+        int head_i = randomValue % heads.size();
+        json_obj["icon"] = heads[head_i];
+        json_obj["nick"] = ui->userEdit->text();
+        //---------------------------------？？？？？？？？？？？？
         json_obj["confirm"] = xorString(ui->confirmEdit->text());
         json_obj["varifycode"] = ui->varifyCodeEdit->text();
         HttpMgr::GetInstance()->PostHttpReq(QUrl(gate_url_prefix + "/user_register"),
@@ -211,6 +211,16 @@ void RegisterDialog::initHttpHandlers()
 
         ChangeTipPage();
     });
+}
+
+void RegisterDialog::showTip(QString tip,bool b_ok){
+    if(!b_ok){
+        ui->errTip->setProperty("state","err");
+    }else{
+        ui->errTip->setProperty("state","normal");
+    }
+    ui->errTip->setText(tip);
+    repolish(ui->errTip);
 }
 
 void RegisterDialog::AddTipErr(TipErr tip_err, QString tip){

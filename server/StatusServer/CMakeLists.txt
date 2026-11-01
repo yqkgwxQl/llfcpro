@@ -141,8 +141,12 @@ if(NOT JSONCPP_LIBRARY)
     set(JSONCPP_LIBRARY "${JSONCPP_LIBRARYDIR}/libjsoncpp.a")
 endif()
 
-# 自动将 config.ini 复制到构建目录
-configure_file(${CMAKE_SOURCE_DIR}/config.ini ${CMAKE_BINARY_DIR}/config.ini COPYONLY)
+# 自动将 config.ini 复制到构建目录（仓库只提供 config.ini.example）
+if(EXISTS "${CMAKE_SOURCE_DIR}/config.ini")
+    configure_file(${CMAKE_SOURCE_DIR}/config.ini ${CMAKE_BINARY_DIR}/config.ini COPYONLY)
+else()
+    message(WARNING "未找到 config.ini，已跳过复制；请复制 config.ini.example 为 config.ini 后重新 configure。")
+endif()
 
 # 4. 构建目标-----------------------------------
 add_executable(${PROJECT_NAME}
@@ -157,6 +161,7 @@ add_executable(${PROJECT_NAME}
     MysqlMgr.cc
     message.pb.cc
     message.grpc.pb.cc
+    Logger.cc
 )
 
 # 5. 头文件包含路径-------------------------------

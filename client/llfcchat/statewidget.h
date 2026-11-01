@@ -12,7 +12,7 @@ public:
     void setState(QString normal="", QString hover="", QString press="",
                   QString select="", QString select_hover="", QString select_press="");
     void addRedPoint();
-    void showRedPoint();
+    void showRedPoint(bool bshow = true);
     void clearState();
     ClickLbState getCurState();
     void setSelected(bool bselected);

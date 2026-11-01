@@ -2,7 +2,7 @@
 #include <QDebug>
 #include <QMessageBox>
 
-
+//？？？？？？？？？？？？？？？？？这段代码暂且不考虑，以后有机会会看看，理解的
 MessageTextEdit::MessageTextEdit(QWidget *parent)
     : QTextEdit(parent)
 {

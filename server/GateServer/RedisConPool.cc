@@ -1,4 +1,5 @@
 #include "RedisConPool.h"
+#include "Logger.h"
 #include <iostream>
 
 RedisConPool::RedisConPool(const char* host,const int port,const std::size_t poolSize,const char* pwd)
@@ -14,7 +15,7 @@ RedisConPool::RedisConPool(const char* host,const int port,const std::size_t poo
 
         auto reply = (redisReply*)redisCommand(context,"AUTH %s",pwd);
         if(reply->type == REDIS_REPLY_ERROR){
-            std::cout<<"认证失败"<< std::endl;
+            LOGI<<"认证失败"<< std::endl;
             //执行成功释放redisCommand执行后返回的redisReply所占用的内存
             freeReplyObject(reply);
             continue;
@@ -22,7 +23,7 @@ RedisConPool::RedisConPool(const char* host,const int port,const std::size_t poo
 
         //执行成功释放redisCommand执行后返回的redisReply所占用的内存
         freeReplyObject(reply);
-        std::cout <<"认证成功"<< std::endl;
+        LOGI <<"认证成功"<< std::endl;
         RedisContextPtr ptr(context);
         connections_.push(std::move(ptr));
     }

@@ -3,14 +3,18 @@
 #include <QWidget>
 #include <QScrollArea>
 
+class ChatItemBase;
+
 class ChatView: public QWidget
 {
     Q_OBJECT
 public:
     ChatView(QWidget* parent = nullptr);
     void appendItem(QWidget* item);     //尾插
+    void appendItem(std::shared_ptr<ChatItemBase> item);
     void prependItem(QWidget* item);    //头插
     void insertItem(QWidget *before, QWidget *item); //中间插 ？？？？？？？？？？？
+    void removeAllItem();
 public slots:
     void onVScrollBarMoved(int min, int max);
 protected:

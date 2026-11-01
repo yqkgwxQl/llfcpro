@@ -1,9 +1,10 @@
 #include "RedisConPool.h"
+#include "Logger.h"
 #include <iostream>
 #include <chrono>
 
 RedisConPool::RedisConPool(const char* host,const int port,const std::size_t poolSize,const char* pwd)
-    :host_(host),port_(port),poolSize_(poolSize),b_stop_(false),counter_(0),pwd_(pwd){
+    :host_(host),port_(port),poolSize_(poolSize),b_stop_(false),counter_(0),fail_count_(0),pwd_(pwd){
         for(std::size_t i = 0; i < poolSize_; i++){
             auto context = redisConnect(host,port);
             if(context == nullptr || context->err != 0){
@@ -15,7 +16,7 @@ RedisConPool::RedisConPool(const char* host,const int port,const std::size_t poo
 
         auto reply = (redisReply*)redisCommand(context,"AUTH %s",pwd_.c_str());
         if(reply->type == REDIS_REPLY_ERROR){
-            std::cout<<"认证失败"<< std::endl;
+            LOGI<<"认证失败"<< std::endl;
             //执行成功释放redisCommand执行后返回的redisReply所占用的内存
             freeReplyObject(reply);
             continue;
@@ -23,7 +24,7 @@ RedisConPool::RedisConPool(const char* host,const int port,const std::size_t poo
 
         //执行成功释放redisCommand执行后返回的redisReply所占用的内存
         freeReplyObject(reply);
-        std::cout <<"认证成功"<< std::endl;
+        LOGI <<"认证成功"<< std::endl;
         RedisContextPtr ptr(context);
         connections_.push(std::move(ptr));
 
@@ -168,14 +169,14 @@ void RedisConPool::CheckRedisConnectValid(){
         //检验是否有效 
         //这里处理了GetConNonBlock()返回nullptr的情况
         if(connect == nullptr){
-            std::cerr << "GetConNonBlock() error" << std::endl;
+            LOGE << "GetConNonBlock() error" << std::endl;
             continue;
         }
         try{
             auto reply = (redisReply*)redisCommand(connect.get(),"PING");
             //先看底层 I/O／协议层有没有错
             if(connect->err){
-                std::cout << "Connection error: " << connect->err << std::endl;
+                LOGI << "Connection error: " << connect->err << std::endl;
                 if(reply){
                     freeReplyObject(reply);
                 }   
@@ -186,7 +187,7 @@ void RedisConPool::CheckRedisConnectValid(){
             }
             //再看 Redis 自身返回的是不是 ERROR
             if (!reply || reply->type == REDIS_REPLY_ERROR){
-                std::cout << "reply is null, redis ping failed: " << std::endl;
+                LOGI << "reply is null, redis ping failed: " << std::endl;
                 if(reply){
                     freeReplyObject(reply);
                 }
@@ -197,7 +198,7 @@ void RedisConPool::CheckRedisConnectValid(){
             //这里没问题了，直接还回去即可
             ReturnRedisConnection(std::move(connect));            
         }catch(std::exception& e){
-            std::cerr << "Exception is :" << e.what() << std::endl;
+            LOGE << "Exception is :" << e.what() << std::endl;
             connect.reset();
             fail_count_++;
             continue;
@@ -221,7 +222,7 @@ bool RedisConPool::Reconnect(){
     auto raw = redisConnect(host_.c_str(),port_);
     if(raw == nullptr || raw->err != 0){
         redisFree(raw);
-        std::cerr << "Reconnect() err! err is : redisConnect(host,port) err" << std::endl;
+        LOGE << "Reconnect() err! err is : redisConnect(host,port) err" << std::endl;
         return false;
     }
     //这里进行认证
@@ -230,12 +231,12 @@ bool RedisConPool::Reconnect(){
         if(reply){
             freeReplyObject(reply);
         }
-        std::cout << "[重连]认证失败" << std::endl;
+        LOGI << "[重连]认证失败" << std::endl;
         redisFree(raw);
         return false;
     }
     
-    std::cout << "重连成功" << std::endl;
+    LOGI << "重连成功" << std::endl;
     //raw 是一个原始指针（redisContext*），原始指针是平凡可复制的值类型
     // auto connect = RedisContextPtr(std::move(raw));
     auto connect = RedisContextPtr(raw);

@@ -10,8 +10,9 @@ CustomizeEdit::CustomizeEdit(QWidget *parent)
     connect(this,&QLineEdit::textChanged,this,&CustomizeEdit::LimitMaxLen);
     QAction* search_action = new QAction(this); //绑定父类对象
     search_action->setIcon(QIcon(":/res/search.png"));
+    //LeadingPosition：文本框起始端
     this->addAction(search_action,QLineEdit::LeadingPosition);
-
+    //TrailingPosition：文本框末尾
     QAction* clear_action = new QAction(this);
     clear_action->setIcon(QIcon(":/res/close_transparent.png"));
     this->addAction(clear_action,QLineEdit::TrailingPosition);

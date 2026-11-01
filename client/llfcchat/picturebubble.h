@@ -6,6 +6,6 @@ class PictureBubble : public BubbleFrame
 {
     Q_OBJECT
 public:
-    PictureBubble(const QPixmap &picture, ChatRole role, QWidget *parent = nullptr);
+    PictureBubble(ChatRole role, const QPixmap &picture, QWidget *parent = nullptr);
 };
 #endif // PICTUREBUBBLE_H

@@ -24,7 +24,6 @@ qt_add_executable(llfcchat
     global.cpp
     singleton.h
     httpmgr.h httpmgr.cpp
-    config.ini
     timerbtn.h timerbtn.cpp
     clickedlabel.h clickedlabel.cpp
     resetdialog.h resetdialog.cpp resetdialog.ui
@@ -58,6 +57,11 @@ qt_add_executable(llfcchat
     applyfriendpage.h applyfriendpage.cpp applyfriendpage.ui
     applyfrienditem.h applyfrienditem.cpp applyfrienditem.ui
     applyfriendlist.h applyfriendlist.cpp
+    findfaildlg.h findfaildlg.cpp findfaildlg.ui
+    logger.h logger.cpp
+    authenfriend.h authenfriend.cpp authenfriend.ui
+    findhasfrienddlg.h findhasfrienddlg.cpp findhasfrienddlg.ui
+
 
 
 )
@@ -72,12 +76,16 @@ target_link_libraries(llfcchat
 target_include_directories(llfcchat PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # ========== 构建后自动拷贝 config.ini ==========
-add_custom_command(TARGET llfcchat POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/config.ini"
-        "$<TARGET_FILE_DIR:llfcchat>/"
-    COMMENT "Copying config.ini to output directory..."
-)
+if(EXISTS "${CMAKE_SOURCE_DIR}/config.ini")
+    add_custom_command(TARGET llfcchat POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/config.ini"
+            "$<TARGET_FILE_DIR:llfcchat>/"
+        COMMENT "Copying config.ini to output directory..."
+    )
+else()
+    message(WARNING "未找到 config.ini，已跳过复制；请复制 config.ini.example 为 config.ini 后重新构建。")
+endif()
 
 # ========== 构建后自动拷贝 static 目录（头像等静态资源）==========
 add_custom_command(TARGET llfcchat POST_BUILD
@@ -95,9 +103,11 @@ install(TARGETS llfcchat
 )
 
 # 安装配置文件到 bin 目录
-install(FILES "${CMAKE_SOURCE_DIR}/config.ini"
-    DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+if(EXISTS "${CMAKE_SOURCE_DIR}/config.ini")
+    install(FILES "${CMAKE_SOURCE_DIR}/config.ini"
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
 
 qt_generate_deploy_app_script(
     TARGET llfcchat

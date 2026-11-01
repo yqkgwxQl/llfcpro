@@ -1,4 +1,5 @@
 #include "MysqlPool.h"
+#include "Logger.h"
 #include <chrono>
 #include "const.h"
 
@@ -18,7 +19,7 @@ MysqlPool::MysqlPool(const std::string& url,const std::string& user,const std::s
             long long timestamp = std::chrono::duration_cast<std::chrono::seconds>(currentTime).count();
 
             SqlConnections_.push(std::make_unique<SqlConnection>(con,timestamp));
-            std::cout << "mysql connection init success" << std::endl;
+            LOGI << "mysql connection init success" << std::endl;
         }
 
         check_thread_  = std::thread([this](){
@@ -30,7 +31,7 @@ MysqlPool::MysqlPool(const std::string& url,const std::string& user,const std::s
         });
         check_thread_.detach();
     }catch(std::exception& e){
-        std::cout << "mysql pool init failed, error is " << e.what()<< std::endl;
+        LOGI << "mysql pool init failed, error is " << e.what()<< std::endl;
     }
 }
 
@@ -112,9 +113,9 @@ void MysqlPool::checkConnection(){
             stmt->executeQuery("SELECT 1");
 
             con->_last_oper_time = timestamp;
-            std::cout << "execute timer alive query , cur is " << timestamp << std::endl;
+            LOGI << "execute timer alive query , cur is " << timestamp << std::endl;
         }catch(std::exception& e){
-            std::cout << "Error keeping connection alive: " << e.what() << std::endl;
+            LOGI << "Error keeping connection alive: " << e.what() << std::endl;
             try{
                 //恢复逻辑
                 sql::mysql::MySQL_Driver* driver = sql::mysql::get_driver_instance();
@@ -122,10 +123,10 @@ void MysqlPool::checkConnection(){
                 newCon->setSchema(schema_);
                 con->_con.reset(newCon);
                 con->_last_oper_time = timestamp;
-                std::cout << "mysql again connection success" << std::endl;
+                LOGI << "mysql again connection success" << std::endl;
             }catch(std::exception& reconnectEx){
                 // 重连失败，连接保持原样，下次再试
-                std::cerr << "Reconnect failed:  will attach next time" << reconnectEx.what() << std::endl;
+                LOGE << "Reconnect failed:  will attach next time" << reconnectEx.what() << std::endl;
             }
         }
     }

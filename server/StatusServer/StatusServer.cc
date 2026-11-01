@@ -14,6 +14,7 @@
 #include <thread>
 #include <boost/asio.hpp>
 #include "StatusServiceImpl.h"
+#include "Logger.h"
 
 /*步骤 4 执行流程  StatusServer 选择一个 ChatServer，生成并存储 token，返回给 GateServer 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -144,14 +145,14 @@ void RunServer(){
     builder.RegisterService(&service);
     // 构建并启动gRPC服务器
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-    std::cout << "Server listening on " << service_addr << std::endl;
+    LOGI << "Server listening on " << service_addr << std::endl;
     //创建用于监听停止信号的io_context ————> 这里有一个问题？为什么StatusServer不需要io_context？ ——> 作为rpc服务，伪客户端和伪服务端
     //共享一个io_context ，此io_context由伪客户端创建
     boost::asio::io_context ioc;
     boost::asio::signal_set signals(ioc,SIGINT,SIGTERM);
     signals.async_wait([&server](const boost::system::error_code& error, int signal_number){
         if (!error) {
-            std::cout << "Shutting down server..." << std::endl;
+            LOGI << "Shutting down server..." << std::endl;
             server->Shutdown(); // 优雅地关闭服务器
         }
     });
@@ -164,14 +165,15 @@ void RunServer(){
 }
 
 int main(int argc, char** argv) {
+    Logger::Init("statusserver", LogLevel::Debug, true, "logs");
     try {
         RunServer();
     }
     catch (std::exception const& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        LOGE << "Error: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-
+    Logger::Init("chatserver1", LogLevel::Debug, true, "logs");
     return 0;
 }
 

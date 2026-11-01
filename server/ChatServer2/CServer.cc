@@ -1,9 +1,12 @@
 
 #include "CServer.h"
+#include "Logger.h"
 #include <iostream>
 #include "AsioIOServicePool.h"
 #include "CSession.h"
 #include "UserMgr.h"
+#include "RedisMgr.h"
+#include "ConfigMgr.h"
 
 /*  两个完全不是同一个东西。
 
@@ -30,11 +33,11 @@ CServer::CServer(boost::asio::io_context& ioc,unsigned short& port) //这里我�
     :_io_context(ioc),_port(port),_acceptor(_io_context,tcp::endpoint(tcp::v4(),_port)){
     
     // StartAccept();
-    std::cout << "Server start success, listen on port : " << _port << std::endl;
+    LOGI << "Server start success, listen on port : " << _port << std::endl;
 }
 
 CServer::~CServer(){
-    std::cout << "Server destruct listen on port : " << _port << std::endl;
+    LOGI << "Server destruct listen on port : " << _port << std::endl;
 }
 void CServer::Start(){
     StartAccept();
@@ -55,7 +58,7 @@ void CServer::HandleAccept(std::shared_ptr<CSession> new_session,const boost::sy
         std::lock_guard<std::mutex> guard_lock(_mutex);
         _sessions.insert(std::pair(new_session->GetSessionId(),new_session));
     }else{
-        std::cout << "session accept failed, error is " << error.what() << std::endl;
+        LOGI << "session accept failed, error is " << error.what() << std::endl;
         //这里出错实际上是Server 自身关闭、文件描述符耗尽、acceptor 被销毁等，不过出错了不用关心，引用计数归零自动销毁
     }
     StartAccept();
@@ -63,10 +66,34 @@ void CServer::HandleAccept(std::shared_ptr<CSession> new_session,const boost::sy
 
 //当有连接异常时，可以调用移除用户Session的接口
 void CServer::ClearSession(std::string session_id){
-    auto session_iter = _sessions.find(session_id);
-    if(session_iter != _sessions.end()){
-        UserMgr::GetInstance()->RmvUserSession(_sessions[session_id]->GetUserId());
+    std::shared_ptr<CSession> session;
+    {
+        std::lock_guard<std::mutex> guard_lock(_mutex); 
+        auto session_iter = _sessions.find(session_id);
+        if(session_iter == _sessions.end())
+            return;     //这里已经清过了
+
+        session = _sessions[session_id];
+        _sessions.erase(session_id);                     //------------清理ChatServer对应的_session[session_id]信息
     }
-    std::lock_guard<std::mutex> guard_lock(_mutex);
-    _sessions.erase(session_id);
+    if(!session)
+        return;
+    const std::size_t uid = session->GetUserId();
+    /*这里是有问题的，Close()是关闭对应Session的_socket, 是跨线程操作，干脆直接到各自的线程上再Close() 
+    eg:Session::AsyncReadHead 的 ec 分支、CSession::AsyncReadBody 的 ec 分支、*/
+    // session->Close();                                           //------------------关闭对应的文件描述符
+    if(uid == 0){
+        LOGI << "空连接关闭: session_id=" << session_id;   // 没登录过的连接
+        return;
+    }
+    if(UserMgr::GetInstance()->RmvUserSession(uid, session->GetSessionId())){ //------------清理UserMgr对应的_uid_to_session[uid]信息
+        //------------清理Redis中对应的临时的session信息  
+        std::string ipKey = USERIPPREFIX + std::to_string(uid);
+        auto& config = ConfigMgr::GetInstance();
+        std::string server_name = config["SelfServer"]["Name"];
+        RedisMgr::GetInstance()->Del(ipKey);
+        RedisMgr::GetInstance()->HIncrBy(LOGIN_COUNT, server_name, -1);
+    }
+    
+    LOGI << "session closed: uid=" << uid << " session_id=" << session_id;
 }   

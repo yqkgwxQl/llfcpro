@@ -14,7 +14,7 @@ LoginDialog::LoginDialog(QWidget *parent)
     , ui(new Ui::LoginDialog)
 {
     ui->setupUi(this);
-    connect(ui->registerBtn,&QPushButton::clicked,this,&LoginDialog::switchRegister);
+    //1< 设置忘记密码标签的样式，密码隐式显示。同时连接对应的信号和槽  ------------------
     ui->forgetLable->SetState("normal","hover","","selected","selected_hover","");
     ui->forgetLable->setCursor(Qt::PointingHandCursor);
     connect(ui->forgetLable, &ClickedLabel::clicked, this, &LoginDialog::slot_forget_pwd);
@@ -25,9 +25,14 @@ LoginDialog::LoginDialog(QWidget *parent)
     connect(ui->emailEdit,&QLineEdit::editingFinished,[this](){
         checkEmailValid();
     });
+
+    // 注意：这里的LoginDialog::switchRegister 是信号！！！
+    connect(ui->registerBtn,&QPushButton::clicked,this,&LoginDialog::switchRegister);
     connect(HttpMgr::GetInstance().get(),&HttpMgr::sig_login_mod_finish,this,&LoginDialog::slot_login_mod_finish);
+    //2< 涉及tcp的两个信号与槽
     connect(this,&LoginDialog::sig_connect_tcp,TcpMgr::GetInstance().get(),&TcpMgr::slot_tcp_connect);
     connect(TcpMgr::GetInstance().get(),&TcpMgr::sig_con_success,this,&LoginDialog::slot_tcp_con_finish);
+    //3< 初始化登录界面的头像，初始化http的login回调函数 -------------------
     initHead();
     initHttpHandlers();
 }
@@ -42,38 +47,6 @@ void LoginDialog::slot_forget_pwd(){
     emit switchReset();
 }
 
-
-
-void LoginDialog::initHead(){
-        // 加载图片
-        QPixmap originalPixmap(":/res/head_1.jpg");
-        // 设置图片自动缩放
-        qDebug()<< originalPixmap.size() << ui->head_label->size();
-        //Qt::KeepAspectRatio  保持宽高比  Qt::SmoothTransformation 使用平滑变换算法（如双线性插值），让缩放后的图片边缘更清晰，不会出现锯齿或马赛克。
-        // originalPixmap = originalPixmap.scaled(ui->head_label->size(),Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        originalPixmap = originalPixmap.scaled(QSize(180,180),Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
-        // 创建一个和原始图片相同大小的QPixmap，用于绘制圆角图片
-        QPixmap roundedPixmap(originalPixmap.size());
-        roundedPixmap.fill(Qt::transparent); // 用透明色填充
-
-        QPainter painter(&roundedPixmap);
-        painter.setRenderHint(QPainter::Antialiasing); // 设置抗锯齿，使圆角更平滑
-        painter.setRenderHint(QPainter::SmoothPixmapTransform); //平滑算法
-
-        // 使用QPainterPath设置圆角
-        QPainterPath path;
-        //四个参数定义了矩形的范围（即整张图片的大小）。  最后两个参数 10, 10 定义了圆角的半径（x轴半径和y轴半径）。数值越大，角越圆。
-        path.addRoundedRect(0, 0, originalPixmap.width(), originalPixmap.height(), 10, 10); // 最后两个参数分别...
-        //这是最关键的一句。它的意思是：“画家，从现在开始，你只能在这个路径（圆角矩形）范围内作画，超出这个范围的都不要画”。这就相当于制作了一个“模具”。
-        painter.setClipPath(path);
-
-        // 将原始图片绘制到roundedPixmap上
-        painter.drawPixmap(0, 0, originalPixmap);
-
-        // 设置绘制好的圆角图片到QLabel上
-        ui->head_label->setPixmap(roundedPixmap);
-}
 
 void LoginDialog::initHttpHandlers(){
     // auto self = enable_shared_from_this();
@@ -147,10 +120,10 @@ void LoginDialog::slot_tcp_con_finish(bool bsuccess){
         //QJsonDocument::Indented 表示使用缩进模式。效果：生成的 JSON 字符串会带有换行符和空格缩进，非常便于人类阅读、日志记录或调试排查
         QJsonDocument jsonDoc(jsonObj);
         //序列化
-        QString jsonString = jsonDoc.toJson(QJsonDocument::Indented);
+        QByteArray jsonBytes = jsonDoc.toJson(QJsonDocument::Indented);
         //发送http请求给chatServer
         //QObject::connect(this,&TcpMgr::sig_send_data,this,&TcpMgr::slot_send_data);
-        emit TcpMgr::GetInstance()->sig_send_data(ReqId::ID_CHAT_LOGIN,jsonString);
+        emit TcpMgr::GetInstance()->sig_send_data(ReqId::ID_CHAT_LOGIN,jsonBytes);
         /* 为什么不直接TcpMgr::GetInstance()->slot_send_data(ReqId::ID_CHAT_LOGIN,jsonString);
         假设将来某天代码重构，slot_tcp_con_finish 在子线程中被调用了：
          -- 未来可能在子线程中：
@@ -187,6 +160,57 @@ void LoginDialog::slot_login_failed(int err){
     enableBtn(true);
 }
 
+//它一次性把登录、注册两个按钮设为可用/不可用。典型用法是"发起请求前禁用、请求失败后恢复"，防止用户在请求还没回来时连点按钮，造成重复的 HTTP 请求
+bool LoginDialog::enableBtn(bool enabled){
+    ui->loginBtn->setEnabled(enabled);
+    ui->registerBtn->setEnabled(enabled);
+    return true;
+}
+
+void LoginDialog::on_loginBtn_clicked(){
+    enableBtn(false);
+    qDebug()<<"login btn clicked";
+    if(checkPwdValid() && (checkEmailValid() != "")){
+        QString email = ui->emailEdit->text();
+        QString pwd = ui->pwdEdit->text();
+        QJsonObject json_obj;
+        json_obj["email"] = email;
+        json_obj["passwd"] = xorString(pwd);
+        HttpMgr::GetInstance()->PostHttpReq(QUrl(gate_url_prefix+"/user_login"),json_obj,ReqId::ID_LOGIN_USER,Modules::LOGINMOD);
+    }
+}
+
+void LoginDialog::initHead(){
+    // 加载图片
+    QPixmap originalPixmap(":/res/head_1.jpg");
+    // 设置图片自动缩放
+    qDebug()<< originalPixmap.size() << ui->head_label->size();
+    //Qt::KeepAspectRatio  保持宽高比  Qt::SmoothTransformation 使用平滑变换算法（如双线性插值），让缩放后的图片边缘更清晰，不会出现锯齿或马赛克。
+    // originalPixmap = originalPixmap.scaled(ui->head_label->size(),Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    originalPixmap = originalPixmap.scaled(QSize(180,180),Qt::KeepAspectRatio, Qt::SmoothTransformation);
+
+    // 创建一个和原始图片相同大小的QPixmap，用于绘制圆角图片
+    QPixmap roundedPixmap(originalPixmap.size());
+    roundedPixmap.fill(Qt::transparent); // 用透明色填充
+
+    QPainter painter(&roundedPixmap);
+    painter.setRenderHint(QPainter::Antialiasing); // 设置抗锯齿，使圆角更平滑
+    painter.setRenderHint(QPainter::SmoothPixmapTransform); //平滑算法
+
+    // 使用QPainterPath设置圆角
+    QPainterPath path;
+    //四个参数定义了矩形的范围（即整张图片的大小）。  最后两个参数 10, 10 定义了圆角的半径（x轴半径和y轴半径）。数值越大，角越圆。
+    path.addRoundedRect(0, 0, originalPixmap.width(), originalPixmap.height(), 10, 10); // 最后两个参数分别...
+    //这是最关键的一句。它的意思是：“画家，从现在开始，你只能在这个路径（圆角矩形）范围内作画，超出这个范围的都不要画”。这就相当于制作了一个“模具”。
+    painter.setClipPath(path);
+
+    // 将原始图片绘制到roundedPixmap上
+    painter.drawPixmap(0, 0, originalPixmap);
+
+    // 设置绘制好的圆角图片到QLabel上
+    ui->head_label->setPixmap(roundedPixmap);
+}
+
 void LoginDialog::showTip(QString tip,bool b_ok){
     if(!b_ok){
         ui->errTip->setProperty("state","err");
@@ -195,6 +219,20 @@ void LoginDialog::showTip(QString tip,bool b_ok){
     }
     ui->errTip->setText(tip);
     repolish(ui->errTip);
+}
+
+void LoginDialog::AddTipErr(TipErr tip_err, QString tip){
+    _tip_errs[tip_err] = tip;
+    showTip(tip,false);
+}
+
+void LoginDialog::DelTipErr(TipErr tip_err){
+    _tip_errs.remove(tip_err);
+    if(_tip_errs.empty()){
+        ui->errTip->clear();
+        return;
+    }else
+        showTip(_tip_errs.first(),false);
 }
 
 QString LoginDialog::checkEmailValid(){
@@ -228,37 +266,6 @@ bool LoginDialog::checkPwdValid(){
     }
 }
 
-bool LoginDialog::enableBtn(bool enabled){
-    ui->loginBtn->setEnabled(enabled);
-    ui->registerBtn->setEnabled(enabled);
-    return true;
-}
-
-void LoginDialog::AddTipErr(TipErr tip_err, QString tip){
-    _tip_errs[tip_err] = tip;
-    showTip(tip,false);
-}
-
-void LoginDialog::DelTipErr(TipErr tip_err){
-    _tip_errs.remove(tip_err);
-    if(_tip_errs.empty()){
-        ui->errTip->clear();
-        return;
-    }else
-        showTip(_tip_errs.first(),false);
-}
-void LoginDialog::on_loginBtn_clicked(){
-    enableBtn(false);
-    qDebug()<<"login btn clicked";
-    if(checkPwdValid() && (checkEmailValid() != "")){
-        QString email = ui->emailEdit->text();
-        QString pwd = ui->pwdEdit->text();
-        QJsonObject json_obj;
-        json_obj["email"] = email;
-        json_obj["passwd"] = xorString(pwd);
-        HttpMgr::GetInstance()->PostHttpReq(QUrl(gate_url_prefix+"/user_login"),json_obj,ReqId::ID_LOGIN_USER,Modules::LOGINMOD);
-    }
-}
 
 
 

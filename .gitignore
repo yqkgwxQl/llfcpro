@@ -1,25 +1,60 @@
-# VS Code 个人配置
+# ============================================================
+#  llfcpro —— .gitignore
+#  原则：仓库里只保留「手写源码 + 运行必需的资源/配置模板」
+#  凡是编译器 / IDE / npm 能重新生成的东西，一律不入库
+# ============================================================
+
+# ---------- IDE / 编辑器个人配置 ----------
 .vscode/
+.qtcreator/
+.idea/
+*.pro.user
+*.user
+*_autogen/
 
-# 构建输出
+# ---------- 构建输出 ----------
 build/
+cmake-build-*/
+out/
 
-# Node.js 依赖
+# ---------- Node.js 依赖 ----------
 node_modules/
 
-# 编译中间文件
+# ---------- 编译中间文件 / 二进制 ----------
 *.o
 *.obj
-*.exe
+*.a
 *.lib
 *.dll
+*.exe
+*.exp
+*.pdb
+*.ilk
+*.so
+*.dylib
 
-# Qt 生成文件
-*.pro.user
+# ---------- Qt 生成文件 ----------
 moc_*.cpp
 ui_*.h
 qrc_*.cpp
+*.autosave
 
-# 系统文件
+# ---------- 日志 ----------
+*.log
+debug.log
+logs/
+
+# ---------- 本机真实配置（仓库只保留 .example 模板）----------
+# 模板位置：
+#   client/llfcchat/config.ini.example
+#   server/ChatServer1|ChatServer2|GateServer|StatusServer/config.ini.example
+#   server/VarifyServer/config.example.json
+# 使用方式：复制一份去掉 .example 后缀，再填自己的地址/账号/密码。
+config.ini
+config.json
+config.local.ini
+config.local.json
+
+# ---------- 系统文件 ----------
 .DS_Store
 Thumbs.db

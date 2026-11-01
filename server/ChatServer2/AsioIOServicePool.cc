@@ -1,4 +1,5 @@
 #include "AsioIOServicePool.h"
+#include "Logger.h"
 
 AsioIOServicePool::AsioIOServicePool(std::size_t size):
     _ioServices(size),_nextIOService(0){
@@ -16,7 +17,7 @@ AsioIOServicePool::AsioIOServicePool(std::size_t size):
 
 AsioIOServicePool::~AsioIOServicePool(){
     // Stop();
-    std::cout << "AsioIOServicePool destruct" << std::endl;
+    LOGI << "AsioIOServicePool destruct" << std::endl;
 }
 
 

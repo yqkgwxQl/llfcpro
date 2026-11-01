@@ -29,7 +29,7 @@ private:
 };
 
 class SendNode:public MsgNode{
-public:
+public:     //CSession里使用此接口传参是ssize_t类型的参数，但是这里使用short类型的参数进行接收，会有一定问题？？？？？？？？？？
     SendNode(const char* msg,short max_len,short msg_id);
     short GetMsgId();
 private:

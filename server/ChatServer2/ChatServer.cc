@@ -8,15 +8,19 @@
 #include "RedisMgr.h"
 #include "const.h"
 #include "ChatServiceImpl.h"
-
+#include "Logger.h"
+#include "MysqlMgr.h"
 
 int main(){
     auto& cfg = ConfigMgr::GetInstance();
     auto server_name = cfg["SelfServer"]["Name"];
+    Logger::Init(server_name, LogLevel::Debug, true, "logs");
+    MysqlMgr::GetInstance();
     try{
         auto pool = AsioIOServicePool::GetInstance();
         //将登录数设为0
-        RedisMgr::GetInstance()->HSet(LOGIN_COUNT,server_name,"0");
+        RedisMgr::GetInstance()->HSet(LOGIN_COUNT,server_name,"0");     //[logincount][SelfServer的name][0] ———> 这种频繁修改
+        //的数据直接放到redis里即可（注意redis里的数据不会凭空消失，只能由外部进行修改，
         //创建rpc服务器
         ChatServiceImpl service;
         grpc::ServerBuilder builder;
@@ -40,12 +44,14 @@ int main(){
         // unsigned short port = static_cast<unsigned short>(std::stoi(cfg["chatserver1"]["Port"]));
         unsigned short port = static_cast<unsigned short>(std::stoi(cfg["SelfServer"]["Port"]));
         auto chatServer = std::make_shared<CServer>(io_context,port);
+        service.SetServer(chatServer);
         chatServer->Start();
         io_context.run();
         RedisMgr::GetInstance()->HDel(LOGIN_COUNT,server_name);
-        RedisMgr::GetInstance()->Close();   //那其它池要不要关？？？？？？？？？？？？？？？？？？//
+        // RedisMgr::GetInstance()->Close();   //那其它池要不要关？ ——> 其它池有析构，你不用关心
         grpc_server_thread.join();
     }catch (std::exception& e){
-        std::cerr << "[ChatServer] error is :" << e.what() << std::endl;
+        LOGE << "[ChatServer] error is :" << e.what() << std::endl;
     }
+    Logger::GetInstance()->shutdown();
 }

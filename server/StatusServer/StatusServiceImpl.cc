@@ -83,7 +83,7 @@ Status StatusServiceImpl::GetChatServer(::grpc::ServerContext* context, const ::
     response->set_host(server._host);
     response->set_port(server._port);
     response->set_token(generate_unique_string());
-    insertToken(request->uid(),response->token());
+    insertToken(request->uid(),response->token());      
     return Status::OK;
 }
 
@@ -155,5 +155,5 @@ void StatusServiceImpl::insertToken(int uid,std::string token){
     //std::to_string(uid) 会返回一个临时的 std::string 对象
     std::string uid_string = std::to_string(uid);
     std::string token_key = USERTOKENPREFIX + uid_string;
-    RedisMgr::GetInstance()->Set(token_key,token);
+    RedisMgr::GetInstance()->Set(token_key,token);      
 }

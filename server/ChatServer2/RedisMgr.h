@@ -33,8 +33,9 @@ public:
     bool HSet(const char* key, const char* hkey, const char* hvalue, size_t hvaluelen);
     std::string HGet(const std::string &key, const std::string &hkey);
     bool Del(const std::string &key);
-    bool HDel(const std::string& key, const std::string& field);
     bool ExistsKey(const std::string &key);
+    bool HDel(const std::string& key, const std::string& field);
+    bool HIncrBy(const std::string& key, const std::string& field, int incr);   //哈希字段自增
     /*你的接口	                对应的 Redis 命令	        Redis 成功时的返回	            reply->type	            关键字段
     Get(key, value)	            GET key	                    字符串值	                REDIS_REPLY_STRING	    reply->str
     Set(key, value)	            SET key value	            OK	                        REDIS_REPLY_STATUS	    reply->str = "OK"
@@ -46,7 +47,7 @@ public:
     HGet(key, hkey)	            HGET key field	            字段的字符串值	            REDIS_REPLY_STRING	    reply->str
     Del(key)	                DEL key	                    删除了几个 key（整数）	    REDIS_REPLY_INTEGER	    reply->integer
     ExistsKey(key)	            EXISTS key	                0 或 1（整数）	            REDIS_REPLY_INTEGER	    reply->integer*/
-    void Close();
+    // void Close();
 private:
     RedisMgr();
 

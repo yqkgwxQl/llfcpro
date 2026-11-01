@@ -75,4 +75,3 @@ GetChatServerRsp StatusGrpcClient::GetChatServer(int uid){
         return reply;
     }
 }
-

@@ -1,4 +1,5 @@
 #include "ConfigMgr.h"
+#include "Logger.h"
 
 /*  [Database]
     Host=127.0.0.1
@@ -21,7 +22,7 @@ ConfigMgr::ConfigMgr(){
         //-------------这里需要注意可执行程序在build目录下，而config.ini文件在build目录的上级目录
         // boost::filesystem::path config_path = current_path.parent_path() / "config.ini";
         boost::filesystem::path config_path = current_path / "config.ini";
-        std::cout << "Config path: " << config_path << std::endl;
+        LOGI << "Config path: " << config_path << std::endl;
 
         //使用boost.PropertyTree来读取ini文件 ————> 将磁盘上的文本文件（config.ini）解析并加载到内存中的一个树状数据结构中
         boost::property_tree::ptree pt; 
@@ -52,7 +53,7 @@ ConfigMgr::ConfigMgr(){
         //     }
         // }
     }catch (const std::exception& e) {
-        std::cerr << "Error loading config: " << e.what() << std::endl;
+        LOGE << "Error loading config: " << e.what() << std::endl;
     }
 }
 

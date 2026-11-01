@@ -38,8 +38,8 @@ void StateWidget::addRedPoint(){
     _red_point->setVisible(false);
 }
 
-void StateWidget::showRedPoint(){
-    _red_point->setVisible(true);
+void StateWidget::showRedPoint(bool bshow){
+    _red_point->setVisible(bshow);
 }
 
 void StateWidget::clearState(){
