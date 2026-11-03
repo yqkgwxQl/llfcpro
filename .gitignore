@@ -55,6 +55,14 @@ config.json
 config.local.ini
 config.local.json
 
+# ---------- 本机 / AI 助手配置 / 练习小样 ----------
+# AGENTS.md：给 AI 助手看的项目规则，本机用，不必入库
+# 下面 3 个目录是 MySQL / Redis 的练习代码，内含真实连接口令，绝不入库
+AGENTS.md
+server/GateServer/cc_mysql_test/
+server/GateServer/mysql_2/
+server/GateServer/redis_test/
+
 # ---------- 系统文件 ----------
 .DS_Store
 Thumbs.db
