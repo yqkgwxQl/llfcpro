@@ -52,7 +52,7 @@
 | **客户端 Qt** | Qt 5（`.pro` 里兼容 5/6 的写法） | **Qt 6.11**（`find_package(Qt6 6.5)`） |
 | **日志** | 无统一日志模块 | 新增 **`Logger.cc/h`**（异步落盘、分级别、支持 `Logger.md` 说明） |
 | **配置管理** | 直接放真实 `config.ini` | 仓库只放 **`config.ini.example`**，CMake `configure_file` 自动复制到构建目录 |
-| **目录命名** | `server/ChatServer` | `server/ChatServer1`（与 `ChatServer2` 成对，贴合多节点语义） |
+| **节点部署** | 每个节点一份完整源码（`ChatServer1` / `ChatServer2`） | 单个 **`server/ChatServer`** + 每节点一份 **`nodes/<节点>/config.ini`**，用 `--config` 启动多个节点，彻底消除源码副本 |
 | **忽略规则** | 较宽松 | `.gitignore` 收紧：构建产物、IDE 配置、真实配置、含口令的练习目录全部排除 |
 | **文档** | 42 篇开发文档（day01–day42） | 不重复收录，见 [学习资料](#8-学习资料) |
 
@@ -63,7 +63,7 @@
 | 层 | 组件 | 版本 / 说明 |
 |---|---|---|
 | 语言 | C++ | C++17 |
-| 编译器 | MinGW-w64 g++ | 64 位 |
+| 编译器 | MinGW-w64 g++ | 64 位，`-Wall -Wextra -Werror=return-type -O2 -pthread` |
 | 构建 | CMake | ≥ 3.15（客户端要求 ≥ 3.19） |
 | 客户端 | Qt | **6.11.0 mingw_64** |
 | 网络 | Boost.Asio / Beast | Boost 1.91（HTTP + TCP） |
@@ -95,7 +95,8 @@
         ┌───────────────┴───────────────┐
         ▼                               ▼
  ┌──────────────┐               ┌──────────────┐
- │ ChatServer1  │◄──gRPC 转发──►│ ChatServer2  │
+ │ ChatServer   │◄──gRPC 转发──►│ ChatServer   │   同一个 exe
+ │   节点 1     │               │   节点 2     │   两份 nodes/*/config.ini
  └──────┬───────┘               └──────┬───────┘
         │                              │
         └───────────┬──────────────────┘
@@ -113,15 +114,23 @@
 
 ```
 llfcchatpro/
-├─ client/llfcchat/          Qt6 客户端（CMake）
+├─ client/llfcchat/             Qt6 客户端（CMake）
 ├─ server/
-│  ├─ GateServer/            HTTP 网关
-│  ├─ StatusServer/          状态服务（Token / 用户状态）
-│  ├─ ChatServer1/           聊天服务节点 1
-│  ├─ ChatServer2/           聊天服务节点 2
-│  └─ VarifyServer/          验证码 / 邮件服务（Node.js）
-├─ docs/mindmaps/            设计思维导图（Excalidraw）
-├─ AGENTS.md                 开发约定与构建细节
+│  ├─ GateServer/               HTTP 网关
+│  ├─ StatusServer/             状态服务（Token / 用户状态）
+│  ├─ ChatServer/               聊天服务（单 exe，多节点由配置区分）
+│  │  └─ nodes/
+│  │     ├─ chatserver1/        节点 1
+│  │     │  ├─ config.ini       节点 1 配置（不入库）
+│  │     │  └─ logs/            节点 1 日志（不入库）
+│  │     └─ chatserver2/        节点 2
+│  │        ├─ config.ini       节点 2 配置（不入库）
+│  │        └─ logs/            节点 2 日志（不入库）
+│  └─ VarifyServer/             验证码 / 邮件服务（Node.js）
+├─ docs/
+│  ├─ mindmaps/                 设计思维导图（Excalidraw）
+│  └─ refactor-summary.md       ChatServer 合并与健壮性改造总结
+├─ AGENTS.md                    开发约定与构建细节
 ├─ .gitignore
 └─ README.md
 ```
@@ -137,6 +146,25 @@ llfcchatpro/
 ├─ message.pb.* / *.grpc.pb.*  protoc 生成
 └─ build/                    CMake 构建产物（不入库）
 ```
+
+`ChatServer` 额外多一层 `nodes/`，每个节点一个目录：配置 + 日志（两者都不入库）：
+
+```
+server/ChatServer/
+├─ nodes/
+│  ├─ chatserver1/
+│  │  ├─ config.ini            节点 1 配置
+│  │  └─ logs/                 节点 1 日志（运行时自动创建）
+│  └─ chatserver2/
+│     ├─ config.ini            节点 2 配置
+│     └─ logs/                 节点 2 日志（运行时自动创建）
+├─ CliOptions.h/.cc            命令行解析（--config / --logdir / --help）
+└─ ...                         其余与上面一致
+```
+
+> 为什么不再是两份源码：`ChatServer1` / `ChatServer2` 原有 40 个文件、其中 36 个字节级相同，
+> 节点差异（名称、TCP/gRPC 端口、对端列表）全部来自配置。合并后**一个 exe + 两份配置**即可模拟多节点，
+> 改动只需维护一份。详细记录见 [`docs/refactor-summary.md`](docs/refactor-summary.md)。
 
 > `docs/mindmaps/` 存放开发过程中画的设计图：GateServer、ChatServer、客户端三张。
 > 它们是 **Excalidraw 格式**——GitHub 上只能看到源码（一段 JSON），看图需克隆后用 Obsidian + Excalidraw 插件打开。
@@ -171,7 +199,7 @@ cmake -S server\GateServer -B server\GateServer\build -G "MinGW Makefiles"
 cmake --build server\GateServer\build --parallel
 ```
 
-其余模块同理：`StatusServer`、`ChatServer1`、`ChatServer2`、`client\llfcchat`。
+其余模块同理：`StatusServer`、`ChatServer`、`client\llfcchat`。
 
 ### 6.3 数据库与缓存
 
@@ -211,7 +239,7 @@ mysql -h <host> -P <port> -u <user> -p < server\sql\schema.sql
 ③ StatusServer  ┐
                 ├─ 二者顺序任意
 ④ GateServer    ┘
-⑤ ChatServer1/2
+⑤ ChatServer（1~N 个节点，同一 exe + 不同 --config）
 
 ⑥ VarifyServer  ← 只在「注册 / 重置密码」时需要
 ```
@@ -230,18 +258,25 @@ docker run -d --name llfc-redis -p <Redis端口>:6379 redis:6 --requirepass <密
 
 ```powershell
 # 2个 C++ 服务———— 网关服务器和状态服务器。启动顺序任意
-server\GateServer\build\GateServer.exe
-server\StatusServer\build\StatusServer.exe
+server\GateServer\build\GATESERVER.exe
+server\StatusServer\build\STATUSSERVER.exe
 
-# 聊天服务器
-server\ChatServer1\build\CHATSERVER1.exe
-server\ChatServer2\build\CHATSERVER2.exe
+# 聊天服务器：同一个 exe，用 --config 区分节点（可只起一个，也可两个都起）
+cd server\ChatServer\build
+.\CHATSERVER.exe --config ..\nodes\chatserver1\config.ini --logdir ..\nodes\chatserver1\logs
+.\CHATSERVER.exe --config ..\nodes\chatserver2\config.ini --logdir ..\nodes\chatserver2\logs
 
 # 需要注册新用户 / 重置密码时才启动
 cd server\VarifyServer
 npm install
 npm run serve
 ```
+
+> 两个节点必须同时满足：`[SelfServer] Name` 不同、TCP 端口不同（默认 8090 / 8091）、
+> gRPC 端口不同（默认 50055 / 50056）。这些在 `nodes/chatserver*/config.ini` 里已配好。
+>
+> 日志默认写到「配置文件所在目录 / logs」，因此两个节点的日志天然分开：
+> `nodes\chatserver1\logs\chatserver1_<日期>.log`。
 
 
 ### 6.5 客户端
@@ -268,7 +303,28 @@ copy server\GateServer\config.ini.example server\GateServer\config.ini
 # 然后填入真实的 MySQL / Redis / 服务地址与端口到config.ini里
 ```
 
-CMake 在 configure 阶段会把 `config.ini` 复制到 `build/`，**所以填完配置后要重新 configure 一次**。
+`GateServer` / `StatusServer`：CMake 在 configure 阶段会把 `config.ini` 复制到 `build/`，
+**所以填完配置后要重新 configure 一次**。
+
+### 7.1 ChatServer 的多节点配置
+
+`ChatServer` 不再把配置固定成一份，而是每个节点一份、启动时显式指定：
+
+```powershell
+cd server\ChatServer\build
+.\CHATSERVER.exe --config ..\nodes\chatserver1\config.ini --logdir ..\nodes\chatserver1\logs
+```
+
+| 参数 | 说明 | 缺省行为 |
+|---|---|---|
+| `--config, -c <ini>` | 节点配置文件 | 依次查找 `<exe目录>/config.ini`、`<当前目录>/config.ini` |
+| `--logdir <dir>` | 日志目录 | `<配置文件所在目录>/logs` |
+| `--help, -h` | 显示用法 | — |
+
+启动失败时的退出码：`2` 用法错误、`3` 配置错误、`4` 启动失败（端口占用 / 数据库不可达）。
+
+> `nodes/<节点>/config.ini` 与所有 `config.ini` 一样被 `.gitignore` 排除，仓库里只保留
+> `server/ChatServer/config.ini.example` 模板。
 
 > `VarifyServer` 用的是 `config.example.json` → `config.json`，同理。
 > 这类本地配置文件已在 `.gitignore` 中排除，仓库里只保留 `.example` 模板。

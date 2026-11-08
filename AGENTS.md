@@ -1,7 +1,7 @@
 # 项目规则（AGENTS.md）
 
 > 给 AI 助手看的项目说明与工作规则，人也可以读。
-> 最后核对：2026-11-07
+> 最后核对：2026-11-08
 
 ## 一、这个项目是什么
 
@@ -17,16 +17,17 @@ C++ 全栈分布式即时通讯学习项目：Qt 客户端 + 5 个后端服务�
 | `client/llfcchat/` | Qt6 客户端（CMake） |
 | `server/GateServer/` | HTTP 网关（CMake，C++） |
 | `server/StatusServer/` | 状态服务（CMake，C++） |
-| `server/ChatServer1/`、`server/ChatServer2/` | 聊天服务，两个节点（CMake，C++） |
+| `server/ChatServer/` | 聊天服务：**单 exe**，多节点由 `nodes/<节点>/config.ini` 区分 |
 | `server/VarifyServer/` | 验证码 / 邮件服务（Node.js） |
 | `server/sql/` | 数据库结构脚本（仅结构，无数据） |
+| `docs/refactor-summary.md` | 本次 ChatServer 合并与健壮性改造的记录（改了什么 / 为什么 / 剩余 backlog） |
 | `<模块>/build/` | CMake 构建产物，已 gitignore |
 | `<模块>/config.ini` | 真实配置（含密码），已 gitignore，只提交 `.example` |
 
-## 三、真实构建方式（**和 README 不一样**）
+## 三、真实构建方式（细节版，README 第 6 节只给最短路径）
 
-> ⚠️ README 的「快速开始」还停留在 **VS2019 + Qt 5.15 + MSVC**，那是旧方案。
-> 当前实际用的是 **MinGW + Qt 6.11**，证据在 `<模块>/build/CMakeCache.txt`。
+> 当前实际用的是 **MinGW + Qt 6.11**（证据在 `<模块>/build/CMakeCache.txt`），
+> 与 README 第 6 节一致；本节补充编译器 / Qt / gRPC 的具体路径。
 
 | 组件 | 实际路径 |
 |---|---|
@@ -40,7 +41,7 @@ C++ 全栈分布式即时通讯学习项目：Qt 客户端 + 5 个后端服务�
 cmake --build client\llfcchat\build --parallel
 cmake --build server\GateServer\build --parallel
 cmake --build server\StatusServer\build --parallel
-cmake --build server\ChatServer1\build --parallel
+cmake --build server\ChatServer\build --parallel
 ```
 
 万一需要重新配置时：
@@ -52,19 +53,40 @@ cmake -S <模块> -B <模块>\build -G "MinGW Makefiles" `
 
 > `VarifyServer` 不走 CMake，是 Node.js：`npm install` → `npm run serve`。
 
+> `ChatServer` 的编译选项含 `-Werror=return-type`：非 void 函数漏写 `return` 属于 UB，
+> 在 `-O2` 下表现为「随机崩溃」，因此升级为编译错误（曾经由此定位到 `CliOptions.cc` 的回归）。
+
 ## 四、怎么跑起来
 
-**基础设施**（先起）：MySQL 8 + Redis 6。连接参数见各模块 `config.ini`。
+**唯一的硬约束**：MySQL 8 + Redis 6 必须先就绪——各服务一进 `main` 就连它们
+（`MysqlMgr::GetInstance()`、`RedisMgr::GetInstance()->HSet(...)`），连不上直接启动失败。
+连接参数见各模块 `config.ini`。
 
-**启动顺序**（不能颠倒）：
+除此之外没有严格顺序（与 README 第 6.4 节一致）：
 
-1. `server/VarifyServer` — `npm install` → `npm run serve`
-2. `server/StatusServer` — 编译产物 exe
-3. `server/GateServer` — 编译产物 exe
-4. `server/ChatServer1`（可再起 `ChatServer2` 模拟多节点）
-5. `client/llfcchat` — 客户端
+| 顺序 | 服务 | 说明 |
+|---|---|---|
+| 1 | MySQL 8 / Redis 6 | 必须先起，启动方式不限（服务 / Docker / 压缩包） |
+| 2 | `server/StatusServer`、`server/GateServer` | **二者顺序任意** |
+| 3 | `server/ChatServer`（一个 exe，可起 1~N 个节点） | 见下方命令 |
+| 4 | `client/llfcchat` — 客户端 | |
+| 可选 | `server/VarifyServer` — `npm install` → `npm run serve` | **只在注册 / 重置密码时需要**，不是必起的第一步 |
 
-**配置文件**：每个模块把 `config.ini.example` 复制成 `config.ini`，再填真实地址与密码。
+聊天服务不再是两个 exe，而是**同一个 exe + 每节点一份配置**：
+
+```powershell
+cd server\ChatServer\build
+.\CHATSERVER.exe --config ..\nodes\chatserver1\config.ini --logdir ..\nodes\chatserver1\logs
+.\CHATSERVER.exe --config ..\nodes\chatserver2\config.ini --logdir ..\nodes\chatserver2\logs
+```
+
+- `--config` 缺省时依次找 `<exe目录>/config.ini`、`<当前目录>/config.ini`
+- `--logdir` 缺省为 `<配置文件所在目录>/logs`
+- 两节点必须：`[SelfServer] Name` 不同、TCP 端口不同（8090/8091）、gRPC 端口不同（50055/50056）
+- 退出码：`2` 用法错误、`3` 配置错误、`4` 启动失败
+
+**配置文件**：`GateServer` / `StatusServer` 仍是「`config.ini.example` → `config.ini` + CMake 复制到 `build/`」，
+改完配置要重新 configure 一次；`ChatServer` 用 `nodes/<节点>/config.ini`，由 `--config` 直接指定，不依赖 `build/` 副本。
 
 ## 五、工作规则
 
@@ -98,7 +120,10 @@ cmake -S <模块> -B <模块>\build -G "MinGW Makefiles" `
 
 | 问题 | 说明 |
 |---|---|
-| README 构建章节过时 | 还写 VS2019 + Qt 5.15，实际是 MinGW + Qt 6.11。以本文第三节为准 |
+| `GateServer` / `StatusServer` 未同步改造 | 它们的 `MysqlPool` / `RedisConPool` 仍是旧逻辑（无限 `cond_.wait`、无启动探测、无检查线程），故障时仍可能「假启动 / 卡死」。移植清单见 `docs/refactor-summary.md` 的 BL-05 / BL-06 |
+| `message.proto` 仍有 4 份拷贝 | `ChatServer` / `GateServer` / `StatusServer` / `VarifyServer` 各一份，改协议要改四处，易漏 |
+| `ChatServer` 运行期探活有延迟 | 连接空闲 ≥600 秒才检查，MySQL 重启后最长约 10 分钟才恢复（BL-10 计划调到 60 秒） |
+| README 缺「源码差异」章节 | README 第 2 节目前只列工程层面差异（构建 / 工具链 / 日志 / 配置 / 目录），源码层面的 diff 仍未写，README 里自己标注了「以后会更新」 |
 | `CMakeLists.txt` 含硬编码绝对路径 | gRPC / protobuf 路径写死为 `E:/zhongzhuan2/grpc/...`，换机器需要改 |
-| 各模块 `config.ini` 不在仓库 | 换机器要按 `.example` 重建 |
+| 各模块 `config.ini` 不在仓库 | 换机器要按 `.example` 重建；`ChatServer` 还需按 `nodes/<节点>/` 目录重建各节点配置 |
 | 数据库初始化 | 只提交 `server/sql/schema.sql`（结构），**绝不提交任何数据**；已有库需手动把 `user_id.id` 设为当前最大 uid |

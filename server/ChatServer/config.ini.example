@@ -1,0 +1,50 @@
+# ChatServer 节点配置模板
+#
+# 用法：每个节点复制一份到 nodes/<节点名>/config.ini，启动时用 --config 指定
+#   cd server/ChatServer/build
+#   .\CHATSERVER.exe --config ..\nodes\chatserver1\config.ini --logdir ..\nodes\chatserver1\logs
+#
+# 多节点要求：
+#   - [SelfServer] Name     不同
+#   - [SelfServer] Port     TCP 端口不同
+#   - [SelfServer] RPCPort  gRPC 端口不同
+#   - [PeerServer] Servers  互指对方的 Name，且下方有同名段提供对端地址
+
+[GateServer]
+Port = 8080
+
+[VarifyServer]
+Host = <地址>
+Port = <端口>
+
+[StatusServer]
+Host = <地址>
+Port = <端口>
+
+[SelfServer]
+Name = <节点名，如 chatserver1>
+Host = 0.0.0.0
+Port = <TCP 端口，如 8090>
+RPCPort = <gRPC 端口，如 50055>
+
+[PeerServer]
+Servers = <对端节点名，如 chatserver2>
+
+# 对端节点段：段名必须与 PeerServer.Servers 里出现的名字一致，
+# Host/Port 填的是【对端】的地址和 gRPC 端口
+[chatserver2]
+Name = chatserver2
+Host = <对端地址>
+Port = <对端 gRPC 端口，如 50056>
+
+[Mysql]
+Host = <地址>
+Port = <端口>
+User = <用户名>
+Passwd = <密码>
+Schema = <数据库名>
+
+[Redis]
+Host = <地址>
+Port = <端口>
+Passwd = <密码>
