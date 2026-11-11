@@ -5,42 +5,45 @@
 
 //if redis一开始没启动，也不会报错。只不过连接池里全为空，therefore要对GetRedisConnection()进行防御
 RedisConPool::RedisConPool(const char* host,const int port,const std::size_t poolSize,const char* pwd)
-    :host_(host),port_(port),poolSize_(poolSize),b_stop_(false),counter_(0),fail_count_(0),pwd_(pwd){
+    :host_(host), port_(port), poolSize_(poolSize), b_stop_(false), counter_(0), fail_count_(0), pwd_(pwd), borrowed_(0), tv_({2, 0}){
         for(std::size_t i = 0; i < poolSize_; i++){
-            auto context = redisConnect(host,port);
+            auto context = redisConnectWithTimeout(host_.c_str(), port_, tv_);
             if(context == nullptr || context->err != 0){
-                if (context != nullptr) {
+                if (context != nullptr)
                     redisFree(context);
-                }
+                LOGE << "创建redis连接失败"; 
                 continue;
-        }
+            }
 
-        auto reply = (redisReply*)redisCommand(context,"AUTH %s",pwd_.c_str());
-        if(reply->type == REDIS_REPLY_ERROR){
-            LOGI<<"认证失败"<< std::endl;
+            RedisContextPtr ptr(context);
+            auto reply = (redisReply*)redisCommand(ptr.get(),"AUTH %s",pwd_.c_str());
+            if (reply == nullptr) {
+                LOGE << "补连接失败：AUTH 无响应";
+                continue;
+            }
+            if (reply->type == REDIS_REPLY_ERROR) {
+                LOGE << "补连接失败：AUTH 被拒绝（检查 [Redis] Passwd）";
+                freeReplyObject(reply);
+                continue;
+            }
+
             //执行成功释放redisCommand执行后返回的redisReply所占用的内存
             freeReplyObject(reply);
-            continue;
+            LOGI <<"认证成功"<< std::endl;
+            connections_.push(std::move(ptr));  
+
         }
-
-        //执行成功释放redisCommand执行后返回的redisReply所占用的内存
-        freeReplyObject(reply);
-        LOGI <<"认证成功"<< std::endl;
-        RedisContextPtr ptr(context);
-        connections_.push(std::move(ptr));  
-
-    }
-    //这里应该涉及移动构造
-    check_thread_ = std::thread([this](){
-        while(!b_stop_){
-            counter_++;
-            if(counter_ == 60){
-                CheckRedisConnectValid();
-                counter_ = 0;
+        //这里应该涉及移动构造
+        check_thread_ = std::thread([this](){
+            while(!b_stop_){
+                counter_++;
+                if(counter_ == 60){
+                    CheckRedisConnectValid();
+                    counter_ = 0;
+                }
+                std::this_thread::sleep_for(std::chrono::seconds(1));
             }
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-    });
+        });
 }   
 RedisConPool::~RedisConPool(){
     // std::lock_guard<std::mutex> guard_lock(mutex_);
@@ -114,6 +117,7 @@ RedisContextPtr RedisConPool::GetRedisConnection(std::chrono::milliseconds timeo
         return nullptr;
     auto context = std::move(connections_.front());
     connections_.pop();
+    borrowed_++;
     return context;
 }
 void RedisConPool::ReturnRedisConnection(RedisContextPtr ptr){
@@ -121,6 +125,12 @@ void RedisConPool::ReturnRedisConnection(RedisContextPtr ptr){
         std::lock_guard<std::mutex> guard_lock(mutex_);
         if(b_stop_)
             return;
+        // if(borrowed_ > 0)    不能这样写，因为可能你废弃一条连接，但是新连接没有正常建立 ————> 借出数不会-1
+        //     borrowed_--;
+        if(borrowed_ + connections_.size() >= poolSize_){
+            LOGI << "Redis池已满，此条连接废弃，不进行归还";
+            return;
+        }
         connections_.push(std::move(ptr));
     }
     cond_.notify_one();
@@ -158,6 +168,7 @@ void RedisConPool::ClearConnections(){
 //     } 
 // }
 void RedisConPool::CheckRedisConnectValid(){
+    EnsureCapacity();
     std::size_t pool_size;
     {
         std::lock_guard<std::mutex> guard_lock(mutex_);
@@ -190,7 +201,7 @@ void RedisConPool::CheckRedisConnectValid(){
         //检验是否有效 
         //这里处理了GetConNonBlock()返回nullptr的情况
         if(connect == nullptr){
-            LOGE << "GetConNonBlock() error" << std::endl;
+            LOGE << "GetConNonBlock() error, continue" << std::endl;
             continue;
         }
         try{
@@ -238,33 +249,119 @@ void RedisConPool::CheckRedisConnectValid(){
     }
 }
 
+// 所谓的重连就是归还新的 ————> 移除旧的，在Reconnect()之前就做过了 
 bool RedisConPool::Reconnect(){
     //这里进行连接
-    auto raw = redisConnect(host_.c_str(),port_);
-    if(raw == nullptr || raw->err != 0){
-        redisFree(raw);
+    auto context = redisConnectWithTimeout(host_.c_str(), port_, tv_);
+    if(context == nullptr || context->err != 0){
+        if(context != nullptr)
+            redisFree(context);
         LOGE << "Reconnect() err! err is : redisConnect(host,port) err" << std::endl;
         return false;
     }
+    RedisContextPtr ptr(context);
     //这里进行认证
-    auto reply = (redisReply*)redisCommand(raw,"AUTH %s",pwd_.c_str());
-    if(reply == nullptr || reply->type == REDIS_REPLY_ERROR){
-        if(reply){
-            freeReplyObject(reply);
-        }
-        LOGI << "[重连]认证失败" << std::endl;
-        redisFree(raw);
+    auto reply = (redisReply*)redisCommand(ptr.get(),"AUTH %s",pwd_.c_str());
+    if (reply == nullptr) {
+        LOGE << "补连接失败：AUTH 无响应";
+        return false;
+    }
+    if (reply->type == REDIS_REPLY_ERROR) {
+        LOGE << "补连接失败：AUTH 被拒绝（检查 [Redis] Passwd）";
+        freeReplyObject(reply);
         return false;
     }
     
     LOGI << "重连成功" << std::endl;
     //raw 是一个原始指针（redisContext*），原始指针是平凡可复制的值类型
     // auto connect = RedisContextPtr(std::move(raw));
-    auto connect = RedisContextPtr(raw);
-    ReturnRedisConnection(std::move(connect));
+    ReturnRedisConnection(std::move(ptr));
     return true;
 }   
 
+void RedisConPool::DiscardConnection(RedisContextPtr bad){
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if(borrowed_ > 0)
+            borrowed_--;
+    }
+    bad.reset();
+    // 创建连接
+    //con 是裸指针，作用域退出时销毁的只是“这个 8 字节的指针变量”，它所指的 redisContext 对象留在堆上，没人释放。所以要对con进行托管
+    auto con = redisConnectWithTimeout(host_.c_str(), port_, tv_);
+    if(con == nullptr || con->err != 0){
+        if(con != nullptr)
+            redisFree(con);
+        LOGE << "创建redis连接失败"; 
+        return;     // 交给EnsureCapacity去补
+    }
+    RedisContextPtr ptr(con);
+    // 认证连接
+    auto reply = (redisReply*)redisCommand(ptr.get(), "AUTH %s", pwd_.c_str());
+    if (reply == nullptr) {
+        LOGE << "补连接失败：AUTH 无响应";
+        return;
+    }
+    if (reply->type == REDIS_REPLY_ERROR) {
+        LOGE << "补连接失败：AUTH 被拒绝（检查 [Redis] Passwd）";
+        freeReplyObject(reply);
+        return;
+    }
+    freeReplyObject(reply);
+    LOGI << "认证成功";
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if(b_stop_)
+            return;
+        if(borrowed_ + connections_.size() >= poolSize_)
+            return;
+        connections_.push(std::move(ptr));
+    }
+    cond_.notify_one();
+}
+
+bool RedisConPool::EnsureCapacity(){
+    std::size_t total = 0;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        total = borrowed_ + connections_.size();
+    }
+    for(std::size_t i = total; i < static_cast<std::size_t>(poolSize_); i++){
+        // 创建连接
+        auto con = redisConnectWithTimeout(host_.c_str(), port_, tv_);
+        if(con == nullptr || con->err != 0){
+            if(con != nullptr)
+                redisFree(con); 
+            LOGE << "补连接失败：redisConnect 无响应（本轮停止扩容）";
+            return false;
+        }
+        RedisContextPtr ptr(con);
+        // 认证连接
+        auto reply = (redisReply*)redisCommand(ptr.get(), "AUTH %s", pwd_.c_str());
+        if (reply == nullptr) {
+            LOGE << "补连接失败：AUTH 无响应";
+            return false;
+        }
+        if (reply->type == REDIS_REPLY_ERROR) {
+            LOGE << "补连接失败：AUTH 被拒绝（检查 [Redis] Passwd）";
+            freeReplyObject(reply);
+            return false;
+        }
+        freeReplyObject(reply);
+        LOGI << "认证成功";
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if(b_stop_)
+                return false;
+            if(borrowed_ + connections_.size() >= poolSize_)
+                return true;        //既然容量已够了，已经确定数量对了，不用继续添加新的链接了         
+            connections_.push(std::move(ptr));      //ReturnRedisConnection是可以调的，只不过要挪到锁外调。我觉得如果挪到锁外，相当于用了两次锁。所以干脆不调ReturnRedisConnection，只用一次锁
+        }
+        cond_.notify_one();
+    }   
+    return true;
+}
+ 
 RedisContextPtr RedisConPool::GetConNonBlock(){
     std::lock_guard<std::mutex> guard_lock(mutex_);
     if(b_stop_ || connections_.empty()){
@@ -273,4 +370,36 @@ RedisContextPtr RedisConPool::GetConNonBlock(){
     auto connect = std::move(connections_.front());
     connections_.pop();
     return connect;
+}
+      
+void RedisConPool::SubBorrowed(){
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if(borrowed_ > 0)
+            borrowed_--;
+    }
+}
+
+RedisConnGuard::RedisConnGuard(RedisConPool* pool,RedisContextPtr con)
+    :pool_(pool), con_(std::move(con)), broken_(false){
+
+}
+
+RedisConnGuard::~RedisConnGuard(){
+    if(!con_) return;
+    if(broken_){
+        pool_->DiscardConnection(std::move(con_));
+        return;
+    }
+    pool_->SubBorrowed();
+    pool_->ReturnRedisConnection(std::move(con_));
+}
+
+
+void RedisConnGuard::markBroken(){
+    broken_ = true;
+}
+
+redisContext* RedisConnGuard::get(){
+    return con_.get();
 }

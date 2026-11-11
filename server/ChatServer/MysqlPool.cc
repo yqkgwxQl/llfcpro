@@ -266,7 +266,7 @@ void MysqlPool::DiscardConnection(std::unique_ptr<SqlConnection> bad) {
         auto* driver = sql::mysql::get_driver_instance();
         fresh.reset(driver->connect(url_, user_, pwd_));
         fresh->setSchema(schema_);
-    } catch (const std::exception& e) {
+    }catch (const std::exception& e) {
         //这里出异常了，这个旧连接直接通过智能指针抛弃
         LOGE << "补连接失败（池子暂时少一条）: " << e.what();
         return;                        // 交给 EnsureCapacity 下一轮再补

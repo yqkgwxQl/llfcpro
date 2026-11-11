@@ -8,6 +8,7 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <sys/time.h>
 
 /*为什么 RedisConPool 不用 gRPC？
 因为 Redis 服务器根本不认识 gRPC。Redis 讲的是自己的语言——RESP 协议（REdis Serialization Protocol）：
@@ -39,6 +40,9 @@ public:
     void ReturnRedisConnection(RedisContextPtr);
     bool Reconnect();
     RedisContextPtr GetConNonBlock();
+    void DiscardConnection(RedisContextPtr bad);    // 销毁 + 补一条
+    bool EnsureCapacity(); 
+    void SubBorrowed();
 private:
     std::string host_;
     int port_;
@@ -52,6 +56,22 @@ private:
     int counter_;   //计数器，60秒触发检查
     std::atomic<int> fail_count_;  //记本轮检查失败数，用于重连
     std::string pwd_;
+    std::size_t borrowed_;
+    struct timeval tv_;   //redisConnect的超时时间
 };
 
+
+class RedisConnGuard{
+public:
+    RedisConnGuard(RedisConPool* pool,RedisContextPtr con);
+    ~RedisConnGuard();
+    RedisConnGuard(const RedisConnGuard&) = delete;
+    RedisConnGuard& operator=(const RedisConnGuard&) = delete;
+    void markBroken();
+    redisContext* get();
+private:
+    RedisConPool* pool_;
+    RedisContextPtr con_;
+    bool broken_;
+};
 

@@ -45,6 +45,7 @@ MysqlDao::~MysqlDao(){
   >0  → 新用户的 uid（成功）*/
     //我这里 -1: sql异常 -2: std::exception -3: 未知异常 -4: MysqlPool里获取不到连接 0: 用户名/邮箱已存在 >0: 新用户的uid
 int MysqlDao::RegUser(const std::string& name,const std::string& email,const std::string& pwd){
+    // 这里获取的链接为空，因此直接返回且并未归还链接，此链接废掉。池里的链接少一条
     auto con = _mysqlPool->GetSqlConnection();
     if (con == nullptr) {                        
         LOGE << "获取MysqlPool里的sql连接失败";
