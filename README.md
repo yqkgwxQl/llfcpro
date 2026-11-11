@@ -129,7 +129,10 @@ llfcchatpro/
 │  └─ VarifyServer/             验证码 / 邮件服务（Node.js）
 ├─ docs/
 │  ├─ mindmaps/                 设计思维导图（Excalidraw）
-│  └─ refactor-summary.md       ChatServer 合并与健壮性改造总结
+│  ├─ 测试指南.md                自动化检查 / 场景测试 / 手工清单
+│  └─ 改造记录.md                ChatServer 合并与健壮性改造总结
+├─ tools/
+│  └─ test/                     测试脚本（健康检查 / 基础设施启停 / 场景运行 / 服务启动 / 后台栈 / 接口测试 / 文档同步）
 ├─ AGENTS.md                    开发约定与构建细节
 ├─ .gitignore
 └─ README.md
@@ -164,7 +167,7 @@ server/ChatServer/
 
 > 为什么不再是两份源码：`ChatServer1` / `ChatServer2` 原有 40 个文件、其中 36 个字节级相同，
 > 节点差异（名称、TCP/gRPC 端口、对端列表）全部来自配置。合并后**一个 exe + 两份配置**即可模拟多节点，
-> 改动只需维护一份。详细记录见 [`docs/refactor-summary.md`](docs/refactor-summary.md)。
+> 改动只需维护一份。详细记录见 [`docs/改造记录.md`](docs/改造记录.md)。
 
 > `docs/mindmaps/` 存放开发过程中画的设计图：GateServer、ChatServer、客户端三张。
 > 它们是 **Excalidraw 格式**——GitHub 上只能看到源码（一段 JSON），看图需克隆后用 Obsidian + Excalidraw 插件打开。

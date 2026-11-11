@@ -20,7 +20,9 @@ C++ 全栈分布式即时通讯学习项目：Qt 客户端 + 5 个后端服务�
 | `server/ChatServer/` | 聊天服务：**单 exe**，多节点由 `nodes/<节点>/config.ini` 区分 |
 | `server/VarifyServer/` | 验证码 / 邮件服务（Node.js） |
 | `server/sql/` | 数据库结构脚本（仅结构，无数据） |
-| `docs/refactor-summary.md` | 本次 ChatServer 合并与健壮性改造的记录（改了什么 / 为什么 / 剩余 backlog） |
+| `docs/测试指南.md` | 自动化检查 / 场景测试 / 手工清单（离线/在线、基础设施启停） |
+| `docs/改造记录.md` | ChatServer 合并与健壮性改造的记录（改了什么 / 为什么 / 剩余 backlog） |
+| `tools/test/` | 测试脚本：`health-check.ps1`（只读检查）、`infra-ctl.ps1`（启停 MySQL/Redis）、`test-run.ps1`（场景运行）、`service-run.ps1`（起服务+客户端）、`stack-ctl.ps1`（后台栈启停）、`api-test.ps1`（写库测试，带备份/清理）、`doc-sync.ps1`（文档同步检查） |
 | `<模块>/build/` | CMake 构建产物，已 gitignore |
 | `<模块>/config.ini` | 真实配置（含密码），已 gitignore，只提交 `.example` |
 
@@ -120,7 +122,7 @@ cd server\ChatServer\build
 
 | 问题 | 说明 |
 |---|---|
-| `GateServer` / `StatusServer` 未同步改造 | 它们的 `MysqlPool` / `RedisConPool` 仍是旧逻辑（无限 `cond_.wait`、无启动探测、无检查线程），故障时仍可能「假启动 / 卡死」。移植清单见 `docs/refactor-summary.md` 的 BL-05 / BL-06 |
+| `GateServer` / `StatusServer` 未同步改造 | 它们的 `MysqlPool` / `RedisConPool` 仍是旧逻辑（无限 `cond_.wait`、无启动探测、无检查线程），故障时仍可能「假启动 / 卡死」。移植清单见 `docs/改造记录.md` 的 BL-05 / BL-06 |
 | `message.proto` 仍有 4 份拷贝 | `ChatServer` / `GateServer` / `StatusServer` / `VarifyServer` 各一份，改协议要改四处，易漏 |
 | `ChatServer` 运行期探活有延迟 | 连接空闲 ≥600 秒才检查，MySQL 重启后最长约 10 分钟才恢复（BL-10 计划调到 60 秒） |
 | README 缺「源码差异」章节 | README 第 2 节目前只列工程层面差异（构建 / 工具链 / 日志 / 配置 / 目录），源码层面的 diff 仍未写，README 里自己标注了「以后会更新」 |
