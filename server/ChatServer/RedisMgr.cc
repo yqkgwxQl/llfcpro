@@ -4,6 +4,12 @@
 #include "ConfigMgr.h"
 #include "const.h"
 
+/* why MysqlDao需要很多trycatch,RedisMgr却不需要?
+维度              MysqlDao                                                              RedisMgr
+驱动错误模型      sql::SQLException —— 抛异常（断连、死锁、唯一键冲突、语法错…）        hiredis 是 C 库，不抛异常：失败返回 NULL + context->err
+错误处理方式      必须 catch，且 catch 里还要 rollback()、判断 IsConnectionLost         检查返回值即可（reply == nullptr / reply->type）
+资源释放          unique_ptr<ResultSet> 自动                                            redisReply* 手动 freeReplyObject
+现有兜底          每个函数自己 catch                                                    main 的 catch（启动期）+ CSession 的 try/catch（请求期）*/
 RedisMgr::RedisMgr(){
     ConfigMgr& CfgMgr = ConfigMgr::GetInstance();
     std::string host = CfgMgr["Redis"]["Host"];
@@ -148,8 +154,8 @@ bool RedisMgr::LPush(const std::string &key, const std::string &value)
         return false;
     }
 
+    freeReplyObject(reply);   // 先释放，再做可能分配内存的日志
     LOGI << "Execut command [ LPUSH " << key << "  " << value << " ] success ! " << std::endl;
-    freeReplyObject(reply);
     return true;
 }
 
@@ -204,8 +210,8 @@ bool RedisMgr::LPop(const std::string &key, std::string& value){
         return "";
     }
     value = reply->str;
+    freeReplyObject(reply);   // 先释放，再做可能分配内存的日志
     LOGI << "Execut command [ LPOP " << key <<  " ] success ! " << std::endl;
-    freeReplyObject(reply);
     return true;
 }
 
@@ -231,8 +237,8 @@ bool RedisMgr::RPush(const std::string& key, const std::string& value) {
         return false;
     }
 
+    freeReplyObject(reply);   // 先释放，再做可能分配内存的日志
     LOGI << "Execut command [ RPUSH " << key << "  " << value << " ] success ! " << std::endl;
-    freeReplyObject(reply);
     return true;
 }
 //右侧pop-------------------
@@ -260,8 +266,8 @@ bool RedisMgr::RPop(const std::string& key, std::string& value) {
         return "";
     }
     value = reply->str;
+    freeReplyObject(reply);   // 先释放，再做可能分配内存的日志
     LOGI << "Execut command [ RPOP " << key << " ] success ! " << std::endl;
-    freeReplyObject(reply);
     return true;
 }
 
@@ -298,8 +304,8 @@ bool RedisMgr::HSet(const std::string &key, const std::string &hkey, const std::
 		LOGE << "Execut command [ HSet " << key << " " << hkey << "  ] failure ! " << std::endl;
 		return false;
 	}
+    freeReplyObject(reply);   // 先释放，再做可能分配内存的日志
     LOGI << "Execut command [ HSet " << key << "  " << hkey << "  " << value << " ] success ! " << std::endl;
-    freeReplyObject(reply);
     return true;
 }
 
@@ -333,8 +339,8 @@ bool RedisMgr::HSet(const char* key, const char* hkey, const char* hvalue, size_
         LOGE << "[ HSet " << key << " " << hkey << " ] failed" << std::endl;
         return false;
     }
+    freeReplyObject(reply);   // 先释放，再做可能分配内存的日志
     LOGI << "Execut command [ HSet " << key << "  " << hkey << "  " << hvalue << " ] success ! " << std::endl;
-    freeReplyObject(reply);
     return true;
 }
 
@@ -399,9 +405,10 @@ bool RedisMgr::Del(const std::string &key)
     }
     //这样调用者能区分"删了 1 个"和"key 不存在"。
     bool deleted = (reply->integer > 0);
+    int delCount = reply->integer;          // 释放后还要用于日志，先取值
+    freeReplyObject(reply);                 // 先释放，再做可能分配内存的日志
     LOGI << "[ DEL " << key << " ] " << (deleted ? "deleted" : "key not found")
-              << " (" << reply->integer << ")" << std::endl;
-     freeReplyObject(reply);
+              << " (" << delCount << ")" << std::endl;
      return deleted;
 }
 
@@ -426,8 +433,8 @@ bool RedisMgr::ExistsKey(const std::string &key)
         return false;
     }
     bool exists = (reply->integer > 0);
+    freeReplyObject(reply);   // 先释放，再做可能分配内存的日志
     LOGI << "[ EXISTS " << key << " ] " << (exists ? "found" : "not found") << std::endl;
-    freeReplyObject(reply);
     return exists;
 }
 
@@ -485,14 +492,17 @@ bool RedisMgr::HIncrBy(const std::string& key, const std::string& field, int inc
     }
     // HINCRBY 成功一定返回整数（自增后的新值），注意它可能是 0 甚至负数
     bool success = (reply->type == REDIS_REPLY_INTEGER);
+    long long newValue = success ? reply->integer : 0;   // 释放后还要用于日志，先取值
+    int replyType = reply->type;
+    freeReplyObject(reply);                              // 先释放，再做可能分配内存的日志
+
     if(success){
         LOGI << "HIncrBy " << key << " " << field << " " << incr
-             << " -> " << reply->integer;
+             << " -> " << newValue;
     }else{
-        LOGE << "HIncrBy: unexpected reply type = " << reply->type;
+        LOGE << "HIncrBy: unexpected reply type = " << replyType;
     }
 
-    freeReplyObject(reply);
     return success;
 }
 

@@ -110,7 +110,7 @@ void MysqlPool::ReturnSqlConnection(std::unique_ptr<SqlConnection> con){
 
     {
         std::lock_guard<std::mutex> guard_lock(mutex_);
-        if(borrowed_ > 0)
+        if(borrowed_ > 0)       // RedisPool的这里没有这段代码
             borrowed_--;
         if(b_stop_)
             return;
