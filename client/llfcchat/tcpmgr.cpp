@@ -6,6 +6,7 @@
 #include <QJsonParseError>
 #include "userdata.h"
 #include "applyfriendpage.h"
+#include <QVector>
 
 
 namespace {
@@ -126,7 +127,6 @@ TcpMgr::TcpMgr()
     });
     //连接发送信号用来发送数据
     QObject::connect(this, &TcpMgr::sig_send_data, this, &TcpMgr::slot_send_data);
-
     initHandlers();
 }
 
@@ -367,21 +367,53 @@ void TcpMgr::initHandlers(){
         QJsonDocument jsonDoc = QJsonDocument::fromJson(data);
         if(jsonDoc.isNull()){
             qDebug() << "Failed to create QJsonDocument.";
-            // return;      这三个return注释掉是因为必须最后发送信号
+            return;
         }
         QJsonObject jsonObj = jsonDoc.object();
         if(!jsonObj.contains("error")){
             qDebug() << "jsonObj为空或此jsonObj不属于业务逻辑";
-            // return;
+            return;
         }
         auto err = jsonObj["error"].toInt();
+        int to_uid = jsonObj["to_uid"].toInt();
+
         if(err != ErrorCodes::SUCCESS){
-            qDebug() << "receive text_chat_msg_rsp error,err is :" << err;
-            // return;
+            qDebug() << "我推送消息给别人失败, err is :" << err;
+
+            std::shared_ptr<ChatSessionData> chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(to_uid);
+            if(!chat_session_data){
+                qDebug() << "UserMgr::GetInstance()->GetChatSessionByUid()为nullptr，无法更改消息的status";
+                return;
+            }
+            std::shared_ptr<QVector<QString>> unique_ids_vector_ptr = std::make_shared<QVector<QString>>() ;
+            QJsonArray unique_ids_array = jsonObj["unique_ids"].toArray();
+            for(const auto& element : unique_ids_array){
+                const QJsonObject obj_2 = element.toObject();
+                const QString unique_id = obj_2["unique_id"].toString();
+                chat_session_data->UpdateMsgStatus(unique_id, MsgStatus::FAILED);
+                unique_ids_vector_ptr->push_back(unique_id);
+            }
+            emit sig_update_msg_status(to_uid, unique_ids_vector_ptr, MsgStatus::FAILED);
+            return;
         }
 
-        qDebug() << "receive text_chat_msg_rsp(from_uid: " << jsonObj["from_uid"].toInt() << " to_uid: " << jsonObj["to_uid"].toInt()
+        qDebug() << "receive text_chat_msg_rsp(from_uid: " << jsonObj["from_uid"].toInt() << " to_uid: " << to_uid
                  << ") Success";
+
+        std::shared_ptr<ChatSessionData> chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(to_uid);
+        if(!chat_session_data){
+            qDebug() << "UserMgr::GetInstance()->GetChatSessionByUid()为nullptr，无法更改消息的status";
+            return;
+        }
+        std::shared_ptr<QVector<QString>> unique_ids_vector_ptr = std::make_shared<QVector<QString>>() ;
+        QJsonArray unique_ids_array = jsonObj["unique_ids"].toArray();
+        for(const auto& element : unique_ids_array){
+            const QJsonObject obj_2 = element.toObject();
+            const QString unique_id = obj_2["unique_id"].toString();
+            chat_session_data->UpdateMsgStatus(unique_id, MsgStatus::DELIVERED);    //更新缓存中的msg的status
+            unique_ids_vector_ptr->push_back(unique_id);
+        }
+        emit sig_update_msg_status(to_uid, unique_ids_vector_ptr, MsgStatus::DELIVERED);    //if cur_chat_uid == to_uid，需要立即更新当前chatpage里的msg的status
     });
     //ID_NOTIFY_TEXT_CHAT_MSG_REQ
     _handlers.insert(ReqId::ID_NOTIFY_TEXT_CHAT_MSG_REQ,[this](ReqId reqId,int len,QByteArray data){
@@ -413,9 +445,8 @@ void TcpMgr::initHandlers(){
             QJsonObject msg_obj = one_msg_doc.toObject();
             QString unique_id = msg_obj["unique_id"].toString();
             QString content = msg_obj["content"].toString();
-            MsgStatus status = static_cast<MsgStatus>(msg_obj["status"].toInt());
             QString chat_time = msg_obj["chat_time"].toString();
-            chat_session_data->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, from_uid, ChatMsgType::TEXT, content, status, chat_time));
+            chat_session_data->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, from_uid, ChatMsgType::TEXT, content, MsgStatus::RECEIVED, chat_time));
         }
         emit sig_receive_text_chat_msg(from_uid);
     });

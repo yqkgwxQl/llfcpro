@@ -141,3 +141,4 @@ QString ChatSessionData::GetLastMsgTime()const{
     auto& last = _msg_list.back();
     return last ? last->GetChatTime() : QString();
 }
+

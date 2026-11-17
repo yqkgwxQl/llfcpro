@@ -93,6 +93,10 @@ void ChatItemBase::setUserName(const QString& name){
 }
 
 void ChatItemBase::setUserIcon(const QPixmap& icon){
+    if (icon.isNull()) {
+        _pIconLabel->setPixmap(QPixmap(":/res/head_1.jpg"));   // 或你想要的默认头像
+        return;
+    }
     _pIconLabel->setPixmap(icon);
 }
 
@@ -104,15 +108,15 @@ void ChatItemBase::setWidget(QWidget *w){
 }
 
 void ChatItemBase::setStatus(MsgStatus status){
-    if(status == MsgStatus::UN_READ){
+    if(status == MsgStatus::SENDING){
         _pStatusLabel->setPixmap(QPixmap(":/res/unread.png"));
         return;
     }
-    if(status == MsgStatus::SEND_FAILED){
+    if(status == MsgStatus::FAILED){
         _pStatusLabel->setPixmap(QPixmap(":/res/send_fail.png"));
         return;
     }
-    if(status == MsgStatus::READED){
+    if(status == MsgStatus::DELIVERED){
         _pStatusLabel->setPixmap(QPixmap(":/res/readed.png"));
         return;
     }

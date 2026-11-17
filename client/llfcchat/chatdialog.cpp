@@ -269,7 +269,7 @@ void ChatDialog::slot_receive_text_chat_msg(int list_item_uid){
     if(!chat_session_data)
         return;
     chat_user_wid->ShowRedPoint(true);
-    chat_user_wid->UpdateWidChatTime(chat_session_data->GetLastMsgTime());
+    // chat_user_wid->UpdateWidChatTime(chat_session_data->GetLastMsgTime());
     chat_user_wid->UpdateWidLastMsg(chat_session_data->GetLastMsgContent());
 
     // 如果当前正在和这个人聊天，右侧立刻重绘

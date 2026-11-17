@@ -8,6 +8,7 @@
 #include "picturebubble.h"
 #include "messagetextedit.h"
 #include "usermgr.h"
+#include "userdata.h"
 #include "chatitembase.h"
 #include <QDateTime>
 #include <QUuid>
@@ -15,6 +16,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <tcpmgr.h>
+#include "global.h"
 
 ChatPage::ChatPage(QWidget *parent)
     : QWidget(parent), _cur_chat_uid(0)
@@ -32,6 +34,33 @@ ChatPage::ChatPage(QWidget *parent)
 
     // 连接 Enter 发送信号
     connect(ui->chat_edit, &MessageTextEdit::send, this, &ChatPage::on_send_btn_clicked);
+    // 连接 更新信息状态信号
+    connect(TcpMgr::GetInstance().get(), &TcpMgr::sig_update_msg_status, this, &ChatPage::slot_updata_msg_status);
+    //tcp连接断开
+        /*auto& [uniqeu_id, item] 是结构化绑定，它要求右边的东西是“可以拆开的类型”——比如 std::pair、std::tuple、数组、或者有公开成员的结构体。
+            而 Qt 容器（QMap / QHash）的迭代器，operator* 返回的是 value 本身，不是 std::pair：
+                ~~~
+                    // Qt 的 QMap/QHash 迭代器语义
+                    *it  →  ChatItemBase*        // 只有值，没有 key
+                    it.key()   // 才是 key
+                ~~~
+        所以你那句 for (auto& [uid, item] : _unrsp_items) 实际是在拆一个 ChatItemBase* → 编译器就报这个错。
+        这和 std::map 不一样：STL 的迭代器解引用得到 std::pair<const K, V>，可以拆；Qt 的容器不行。*/
+    connect(TcpMgr::GetInstance().get(), &TcpMgr::sig_connection_closed, this, [this](){
+        for(auto iter = _unrsp_items.begin(); iter != _unrsp_items.end(); iter++){
+            if(iter.value())
+                iter.value()->setStatus(MsgStatus::FAILED);
+        }
+        if(_cur_chat_uid > 0){
+            auto chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(_cur_chat_uid);
+            if(chat_session_data){
+                for(auto& chat_data_base : chat_session_data->GetMsgList()){
+                    if(chat_data_base && chat_data_base->GetStatus() == MsgStatus::SENDING)
+                        chat_data_base->SetStatus(MsgStatus::FAILED);
+                }
+            }
+        }
+    });
 }
 
 ChatPage::~ChatPage()
@@ -58,7 +87,6 @@ void ChatPage::SetChatUser(int other_uid){
     for(auto& msg : msg_list){
         AppendChatMsg(msg);
     }
-    _cur_chat_uid = other_uid;
 }
 
 int ChatPage::GetCurChatUid(){
@@ -67,7 +95,8 @@ int ChatPage::GetCurChatUid(){
 
 void ChatPage::clearItems(){
     ui->chat_data_list->removeAllItem();
-    _unrsp_items.clear();
+    _unrsp_items.clear();       // _unrsp_items ————> 用来保存本会话的未收到回报的chat_item_base，切换会话则表示切换的会话的未收到回报的chat_itme_base
+                                // 这是通过AppendChatMsg()根据其status做到的，很巧妙
 }
 
 /*ChatPage 的 paintEvent 对谁起作用？      只对 ChatPage 自己身上的 QSS 起作用
@@ -115,6 +144,7 @@ void ChatPage::on_send_btn_clicked(){
     int send_size = 0;
     QJsonObject sendObj;
     QJsonArray text_array;
+
     auto fflush = [&text_array, this, &send_size](){
         if(text_array.isEmpty())
             return;
@@ -156,15 +186,14 @@ void ChatPage::on_send_btn_clicked(){
         const QString msg_unique_id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         std::shared_ptr<ChatDataBase> chat_data_base;
         if(msg_type == ChatMsgType::TEXT)
-            chat_data_base = std::make_shared<TextChatData>(msg_unique_id, self_uid, one.content, MsgStatus::UN_READ, chat_time);
+            chat_data_base = std::make_shared<TextChatData>(msg_unique_id, self_uid, one.content, MsgStatus::SENDING, chat_time);
         else
-            chat_data_base = std::make_shared<ChatDataBase>(msg_unique_id, self_uid, msg_type, one.content, MsgStatus::UN_READ, chat_time);
+            chat_data_base = std::make_shared<ChatDataBase>(msg_unique_id, self_uid, msg_type, one.content, MsgStatus::SENDING, chat_time);
 
         //先落地本地缓存
         chat_session_data->AppendMsg(msg_unique_id, chat_data_base);
         //然后再添加气泡
         AppendChatMsg(chat_data_base);
-
         //发送数据------------
         if(msg_type == ChatMsgType::TEXT){
             if(send_size + bytes> 1024)
@@ -173,7 +202,6 @@ void ChatPage::on_send_btn_clicked(){
             QJsonObject msgObj;
             msgObj["unique_id"] = msg_unique_id;
             msgObj["content"] = one.content;
-            msgObj["status"] = static_cast<int>(MsgStatus::UN_READ);
             msgObj["chat_time"] = chat_time;
             text_array.append(msgObj);
         }else{
@@ -183,6 +211,19 @@ void ChatPage::on_send_btn_clicked(){
     //直到for循环结束send_size都未 > 1024
     fflush();
 }
+
+void ChatPage::slot_updata_msg_status(int other_uid, std::shared_ptr<QVector<QString>> unique_ids_vector_ptr, MsgStatus status){
+    if(_cur_chat_uid != other_uid)
+        return;
+    for(const QString& unique_id : *unique_ids_vector_ptr){
+        auto iter = _unrsp_items.find(unique_id);
+        if(iter != _unrsp_items.end()){
+            iter.value()->setStatus(status);
+            _unrsp_items.remove(unique_id);
+        }
+    }
+}
+
 
 void ChatPage::AppendChatMsg(std::shared_ptr<ChatDataBase> msg){
     if(!msg)
@@ -231,7 +272,7 @@ void ChatPage::AppendChatMsg(std::shared_ptr<ChatDataBase> msg){
 
     ui->chat_data_list->appendItem(chat_item_base);     //if是shared_ptr的话，这里返回时，引用计数会-1
     //还没收到回执的气泡先记下来，等服务器回包后改状态
-    if(msg_role == ChatRole::Self && msg->GetStatus() != MsgStatus::READED){
+    if(msg_role == ChatRole::Self && msg->GetStatus() == MsgStatus::SENDING){
         _unrsp_items.insert(msg->GetUniqueId(), chat_item_base);
     }
 }

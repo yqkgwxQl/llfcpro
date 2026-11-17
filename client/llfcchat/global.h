@@ -106,9 +106,22 @@ struct MsgInfo{
 
 //消息发送/阅读状态（延迟显示在气泡旁边的小图标）
 enum class MsgStatus{
-    UN_READ = 0,        //已经发出，但未收到服务器回执/ 对方未读
-    SEND_FAILED = 1,    //发送失败
-    READED =2           //对方已读
+    SENDING = 0,      // 已发出，等服务器回执
+    FAILED  = 1,      // 发送失败（超时 / 服务器返回 error）
+    DELIVERED = 2,    // 服务器已接收（online=true 表示已转发给在线对端）
+    READ = 3,         // 对端已读，此功能暂时搁置？？？？？？？？
+    RECEIVED = 4,     /*对于对端收到了我给她发的消息，她应该设置收到的消息的状态为什么呢？ 其实应该不设置的 ———— 1.MsgStatus用来描述发送的进度的状态
+                        2.void ChatPage::AppendChatMsg(std::shared_ptr<ChatDataBase> msg){
+                                    ...
+                                    ...
+                                if(msg_role == ChatRole::Self){
+                                    chat_item_base->setStatus(msg->GetStatus());
+                                }
+                                    ...
+                                    ...
+                        这里不会设置别人给我发送信息的状态，只会设置我发送信息给别人的状态，因此不设置最好
+                    but ChatDataBase 数据结构里must有status，因此设置RECEIVED进行占位，保证不报错
+                   */
 };
 
 enum class ChatMsgType{
@@ -126,8 +139,8 @@ enum class ChatMsgType{
         qDebug() << ChatMsgType::TEXT;                     // ❌ 没有匹配的 operator<<
         qDebug() << static_cast<int>(ChatMsgType::TEXT);   // ✅
     3.
-        MsgStatus s = UN_READ;                 // ✅ 能编（名字泄漏 + 隐式转换）
-        int n = MsgStatus::UN_READ;            // ✅ 能编（无 class 时 :: 也能用，只是多余）
+        MsgStatus s = SENDING;                 // ✅ 能编（名字泄漏 + 隐式转换）
+        int n = MsgStatus::SENDING;            // ✅ 能编（无 class 时 :: 也能用，只是多余）
 
         ChatMsgType t = ChatMsgType::TEXT;     // ✅
         ChatMsgType t2 = TEXT;                 // ❌ error: 'TEXT' was not declared

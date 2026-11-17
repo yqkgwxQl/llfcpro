@@ -149,6 +149,7 @@ public:
 
 class ChatDataBase{
 public:
+    // ChatDataBase(QString unique_id, int send_uid, ChatMsgType msg_type, QString content, MsgStatus status, QString chat_time = QString());
     ChatDataBase(QString unique_id, int send_uid, ChatMsgType msg_type, QString content, MsgStatus status, QString chat_time = QString());
     ~ChatDataBase();
     QString GetUniqueId()const;
@@ -170,7 +171,7 @@ private:
 
 class TextChatData : public ChatDataBase {
 public:
-    TextChatData(QString unique_id, int send_uid, QString content, MsgStatus status = MsgStatus::UN_READ, QString chat_time = QString());
+    TextChatData(QString unique_id, int send_uid, QString content, MsgStatus status, QString chat_time = QString());
     ~TextChatData();
 };
 
@@ -188,7 +189,8 @@ public:
 private:
     int _other_uid;
     QVector<std::shared_ptr<ChatDataBase>> _msg_list;
-    QMap<QString, std::shared_ptr<ChatDataBase>> _msg_map;
+    QMap<QString, std::shared_ptr<ChatDataBase>> _msg_map;      // 这个_msg_map主要是方便查找对应unique_id的ChatDataBase的
 };
+
 
 #endif // USERDATA_H

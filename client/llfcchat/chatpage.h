@@ -8,6 +8,8 @@ class ChatItemBase;
 class ChatDataBase;
 class TextBubble;
 class PictureBubble;
+class Batch;
+enum class MsgStatus;
 
 namespace Ui {
 class ChatPage;
@@ -28,7 +30,7 @@ protected:
     virtual void paintEvent(QPaintEvent *event)override;
 private slots:
     void on_send_btn_clicked();
-
+    void slot_updata_msg_status(int other_uid, std::shared_ptr<QVector<QString>> unique_ids_vector_ptr, MsgStatus status);
 private:
     void AppendChatMsg(std::shared_ptr<ChatDataBase> msg);  //渲染一条消息气泡
 

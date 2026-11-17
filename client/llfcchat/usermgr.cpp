@@ -198,7 +198,7 @@ void UserMgr::AppendFriendList(QJsonArray array){
         // QString icon = value["icon"].toString();
         // QString nick = value["nick"].toString();
         // int sex = value["sex"].toInt();
-        AddToFriendMap(std::make_shared<UserInfo>(uid, name, icon, nick, sex, desc, ""));
+        AddToFriendMap(std::make_shared<UserInfo>(uid, name, nick, icon, sex, desc, ""));
     }
 }
 
