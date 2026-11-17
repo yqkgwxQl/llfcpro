@@ -1,7 +1,7 @@
 # 项目规则（AGENTS.md）
 
 > 给 AI 助手看的项目说明与工作规则，人也可以读。
-> 最后核对：2026-11-08
+> 最后核对：2026-11-17
 
 ## 一、这个项目是什么
 
@@ -101,10 +101,15 @@ cd server\ChatServer\build
 
 ### 必须先问
 
-- `git commit` / `git push`
 - 删除或移动文件
 - 修改真实配置：`config.ini`、`config.json`
 - 操作仓库外的任何文件
+
+### 绝不执行（由用户自己完成）
+
+- **`git commit` / `git push`**：AI 只负责在提交前**总结本次工作内容**（改了什么 / 为什么 / 怎么验证 / 还剩什么），
+  暂存、填写 commit message、commit、push 全部由用户在 VSCode 里自己操作。
+  详见 `docs/文档同步清单.md` 第 7 节「提交（commit / push）约定」。
 
 ### 红线
 
@@ -117,15 +122,17 @@ cd server\ChatServer\build
 - C++ 沿用现有命名：服务端 `.cc/.h`，客户端 `.cpp/.h`
 - 提交信息用中文，写清「改了什么 + 为什么」
 - 新增依赖前先确认能否复用现有 boost / gRPC / Qt，不要引入第二套
+- 数据层与公共常量（`RedisConPool` / `RedisMgr` / `MysqlPool` / `MysqlDao` / `MysqlMgr` / `data.h` / `const.h`）**以 `server/ChatServer/` 为规范源**：改动先改 ChatServer，再同步 `GateServer` / `StatusServer` 的同名拷贝，改完跑一遍 `doc-sync.ps1` 看 D7
 
 ## 七、已知问题
 
 | 问题 | 说明 |
 |---|---|
-| `GateServer` / `StatusServer` 未同步改造 | 它们的 `MysqlPool` / `RedisConPool` 仍是旧逻辑（无限 `cond_.wait`、无启动探测、无检查线程），故障时仍可能「假启动 / 卡死」。移植清单见 `docs/改造记录.md` 的 BL-05 / BL-06 |
+| 数据层有 3 份拷贝 | `MysqlPool` / `MysqlDao` / `MysqlMgr` / `RedisConPool` / `RedisMgr` / `data.h` / `const.h` 在 `ChatServer` / `GateServer` / `StatusServer` 各一份，**规范源是 `server/ChatServer/`**（2026-11-16 完成移植）：改完必须同步另外两个服务，否则 `doc-sync.ps1` 的 D7 会 WARN。抽公共库的计划见 `docs/改造记录.md` 的 BL-07 |
 | `message.proto` 仍有 4 份拷贝 | `ChatServer` / `GateServer` / `StatusServer` / `VarifyServer` 各一份，改协议要改四处，易漏 |
 | `ChatServer` 运行期探活有延迟 | 连接空闲 ≥600 秒才检查，MySQL 重启后最长约 10 分钟才恢复（BL-10 计划调到 60 秒） |
 | README 缺「源码差异」章节 | README 第 2 节目前只列工程层面差异（构建 / 工具链 / 日志 / 配置 / 目录），源码层面的 diff 仍未写，README 里自己标注了「以后会更新」 |
 | `CMakeLists.txt` 含硬编码绝对路径 | gRPC / protobuf 路径写死为 `E:/zhongzhuan2/grpc/...`，换机器需要改 |
 | 各模块 `config.ini` 不在仓库 | 换机器要按 `.example` 重建；`ChatServer` 还需按 `nodes/<节点>/` 目录重建各节点配置 |
 | 数据库初始化 | 只提交 `server/sql/schema.sql`（结构），**绝不提交任何数据**；已有库需手动把 `user_id.id` 设为当前最大 uid |
+| 客户端消息状态只做到「已送达」 | `SENDING / DELIVERED / FAILED` 已可用，但**发送超时兜底、已读回执、重发幂等**都没做（BL-17 ~ BL-21，2026-11-17 决定暂缓）；另外服务端离线消息其实**没有落库**，会直接丢失（BL-19）。设计与现状见 `docs/改造记录.md` 第 10 节 |

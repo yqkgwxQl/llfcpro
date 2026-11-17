@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
     文档同步检查：确认 README / AGENTS / docs 之间的链接、路径、端口、脚本引用一致。
@@ -11,6 +11,8 @@
       D4 脚本引用：文档里提到的 tools/test/*.ps1 都存在，且每个脚本都被文档提到
       D5 端口一致：节点配置里的 TCP/gRPC 端口在 README / 测试指南里都有出现
       D6 文档清单：docs/文档同步清单.md 存在
+      D7 拷贝一致：数据层 + const.h 共 12 个文件，在 GateServer / StatusServer 里
+                    必须与 server/ChatServer（规范源）内容一致（换行差异忽略）
 
     只读检查，不修改任何文件。
 
@@ -148,6 +150,69 @@ if (Test-Path -LiteralPath $checklist) {
     Add-Result "D6 文档同步清单" "PASS" "docs/文档同步清单.md"
 } else {
     Add-Result "D6 文档同步清单" "FAIL" "缺少 docs/文档同步清单.md"
+}
+
+# ---------- D7 拷贝一致（规范源 = server/ChatServer） -----------------------
+
+# 这 12 个文件在三个服务里各存一份，规范源是 server/ChatServer。
+# 比较前先把 CRLF 统一成 LF 再算 SHA256：仓库开着 core.autocrlf，
+# 一次 checkout 就可能把换行改掉，按原始字节比会天天误报。
+function Get-NormalizedHash {
+    param([string]$Path)
+    $text = [System.IO.File]::ReadAllText($Path)
+    $text = $text -replace "`r`n", "`n"
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join '')
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+$sharedFiles = @(
+    "MysqlDao.cc", "MysqlDao.h",
+    "MysqlMgr.cc", "MysqlMgr.h",
+    "MysqlPool.cc", "MysqlPool.h",
+    "RedisConPool.cc", "RedisConPool.h",
+    "RedisMgr.cc", "RedisMgr.h",
+    "data.h",
+    "const.h"
+)
+$canonicalDir = Join-Path (Join-Path $Root "server") "ChatServer"
+$canonicalHash = @{}
+foreach ($name in $sharedFiles) {
+    $src = Join-Path $canonicalDir $name
+    if (Test-Path -LiteralPath $src) {
+        $canonicalHash[$name] = Get-NormalizedHash -Path $src
+    } else {
+        $canonicalHash[$name] = $null
+        Add-Result ("D7 规范源 " + $name) "FAIL" "server/ChatServer 下找不到该文件"
+    }
+}
+
+foreach ($svc in @("GateServer", "StatusServer")) {
+    $svcDir = Join-Path (Join-Path $Root "server") $svc
+    $missing = @()
+    $drift = @()
+    foreach ($name in $sharedFiles) {
+        if ($null -eq $canonicalHash[$name]) { continue }
+        $dst = Join-Path $svcDir $name
+        if (-not (Test-Path -LiteralPath $dst)) {
+            $missing += $name
+            continue
+        }
+        if ((Get-NormalizedHash -Path $dst) -ne $canonicalHash[$name]) {
+            $drift += $name
+        }
+    }
+    if ($missing.Count -gt 0) {
+        Add-Result ("D7 " + $svc + " 拷贝") "FAIL" ("缺少: " + ($missing -join ", "))
+    } elseif ($drift.Count -gt 0) {
+        Add-Result ("D7 " + $svc + " 拷贝") "WARN" ("与规范源不一致（先改 server/ChatServer 再同步拷贝）: " + ($drift -join ", "))
+    } else {
+        Add-Result ("D7 " + $svc + " 拷贝") "PASS" ("{0} 个文件与 server/ChatServer 一致（忽略换行差异）" -f $sharedFiles.Count)
+    }
 }
 
 # ---------- 汇总 -----------------------------------------------------------
