@@ -5,6 +5,10 @@
 #include <hiredis/hiredis.h>
 #include <condition_variable>
 #include <mutex>
+#include <thread>
+#include <atomic>
+#include <chrono>
+#include <sys/time.h>
 
 /*为什么 RedisConPool 不用 gRPC？
 因为 Redis 服务器根本不认识 gRPC。Redis 讲的是自己的语言——RESP 协议（REdis Serialization Protocol）：
@@ -29,8 +33,16 @@ public:
     ~RedisConPool();
     void Close();
     void ClearConnections();
-    RedisContextPtr GetRedisConnection();
+    // RedisContextPtr GetRedisConnection();
+    //带超时检测的版本，防止GetRedisConnection()由于redis没有启动或中断等情况，导致GetRedisConnection()函数卡住
+    RedisContextPtr GetRedisConnection(std::chrono::milliseconds timeout = std::chrono::seconds(3));
+    void CheckRedisConnectValid();
     void ReturnRedisConnection(RedisContextPtr);
+    bool Reconnect();
+    RedisContextPtr GetConNonBlock();
+    void DiscardConnection(RedisContextPtr bad);    // 销毁 + 补一条
+    bool EnsureCapacity(); 
+    void SubBorrowed();
 private:
     std::string host_;
     int port_;
@@ -39,4 +51,27 @@ private:
     std::queue<RedisContextPtr> connections_;
     std::mutex mutex_;
     std::condition_variable cond_;
+    //这里只是提供redis连接池，但是缺少redis连接的维护，必须定时检查redis连接的可靠性，然后更新redis连接
+    std::thread check_thread_;
+    int counter_;   //计数器，60秒触发检查
+    std::atomic<int> fail_count_;  //记本轮检查失败数，用于重连
+    std::string pwd_;
+    std::size_t borrowed_;
+    struct timeval tv_;   //redisConnect的超时时间
 };
+
+
+class RedisConnGuard{
+public:
+    RedisConnGuard(RedisConPool* pool,RedisContextPtr con);
+    ~RedisConnGuard();
+    RedisConnGuard(const RedisConnGuard&) = delete;
+    RedisConnGuard& operator=(const RedisConnGuard&) = delete;
+    void markBroken();
+    redisContext* get();
+private:
+    RedisConPool* pool_;
+    RedisContextPtr con_;
+    bool broken_;
+};
+

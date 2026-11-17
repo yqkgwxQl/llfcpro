@@ -525,8 +525,11 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
     return_value["from_uid"] = from_uid;
     return_value["to_uid"] = to_uid;
     for(const auto& text_obj : text_array){
-        if(text_obj.isObject())
-            return_value["unique_ids"].append(text_obj["unique_id"].asString());
+        if(text_obj.isObject()){
+            Json::Value unique_id_obj;
+            unique_id_obj["unique_id"] = text_obj["unique_id"].asString();
+            return_value["unique_ids"].append(unique_id_obj);
+        }
     }
     Defer defer([&return_value, session](){
         std::string return_string = return_value.toStyledString();
@@ -551,7 +554,7 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
             notify["from_uid"] = from_uid;
             notify["to_uid"] = to_uid;
             notify["text_array"] = text_array;
-            return_value["onlien"] = true;
+            return_value["online"] = true;
 
             std::string notify_str = notify.toStyledString();
             peer_session->Send(ID_NOTIFY_TEXT_CHAT_MSG_REQ, notify_str);

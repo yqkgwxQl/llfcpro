@@ -34,7 +34,29 @@ public:
     std::string HGet(const std::string &key, const std::string &hkey);
     bool Del(const std::string &key);
     bool ExistsKey(const std::string &key);
-    void Close();
+    bool HDel(const std::string& key, const std::string& field);
+    bool HIncrBy(const std::string& key, const std::string& field, int incr);   //哈希字段自增
+    /* Ping作用
+        1. 只读探针（健康检查 / 监控）
+            # 运维想知道"这个节点现在还能连 Redis 吗"
+            # 用 HSet 去探会写入一个键，语义不对；PING 不碰数据
+        2. 启动参数里的自检模式
+            CHATSERVER.exe --config nodes\chatserver2\config.ini --check
+            # 只验证配置 + Redis + MySQL 可达，不启动服务，直接退出 0/4
+        3. 写操作前确认链路*/
+    bool Ping(std::chrono::milliseconds timeout = std::chrono::seconds(3));
+    /*你的接口	                对应的 Redis 命令	        Redis 成功时的返回	            reply->type	            关键字段
+    Get(key, value)	            GET key	                    字符串值	                REDIS_REPLY_STRING	    reply->str
+    Set(key, value)	            SET key value	            OK	                        REDIS_REPLY_STATUS	    reply->str = "OK"
+    LPush(key, value)	        LPUSH key value	            列表长度（整数）	        REDIS_REPLY_INTEGER	    reply->integer
+    LPop(key, value)	        LPOP key	                弹出的字符串值	            REDIS_REPLY_STRING	    reply->str
+    RPush(key, value)	        RPUSH key value	            列表长度（整数）	        REDIS_REPLY_INTEGER	    reply->integer
+    RPop(key, value)	        RPOP key	                弹出的字符串值	            REDIS_REPLY_STRING	    reply->str
+    HSet(key, hkey, value)	    HSET key field value	    0 或 1（整数）	            REDIS_REPLY_INTEGER	    reply->integer
+    HGet(key, hkey)	            HGET key field	            字段的字符串值	            REDIS_REPLY_STRING	    reply->str
+    Del(key)	                DEL key	                    删除了几个 key（整数）	    REDIS_REPLY_INTEGER	    reply->integer
+    ExistsKey(key)	            EXISTS key	                0 或 1（整数）	            REDIS_REPLY_INTEGER	    reply->integer*/
+    // void Close();
 private:
     RedisMgr();
 

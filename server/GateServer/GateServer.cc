@@ -7,27 +7,27 @@
 #include <assert.h>
 #include "Logger.h"
 
-void TestRedisMgr() {
-    assert(RedisMgr::GetInstance()->Set("blogwebsite","llfc.club"));
-    std::string value="";
-    assert(RedisMgr::GetInstance()->Get("blogwebsite", value) );
-    assert(RedisMgr::GetInstance()->Get("nonekey", value) == false);
+// void TestRedisMgr() {
+//     assert(RedisMgr::GetInstance()->Set("blogwebsite","llfc.club"));
+//     std::string value="";
+//     assert(RedisMgr::GetInstance()->Get("blogwebsite", value) );
+//     assert(RedisMgr::GetInstance()->Get("nonekey", value) == false);
     
-    assert(RedisMgr::GetInstance()->HSet("bloginfo","blogwebsite", "llfc.club"));
-    assert(RedisMgr::GetInstance()->HGet("bloginfo","blogwebsite") != "");
-    assert(RedisMgr::GetInstance()->ExistsKey("bloginfo"));
-    assert(RedisMgr::GetInstance()->Del("bloginfo"));
-    // assert(RedisMgr::GetInstance()->Del("bloginfo"));    这里会有作者写的其实返回true,我写的返回false 所以会使程序终止
-    assert(RedisMgr::GetInstance()->ExistsKey("bloginfo") == false);
-    assert(RedisMgr::GetInstance()->LPush("lpushkey1", "lpushvalue1"));
-    assert(RedisMgr::GetInstance()->LPush("lpushkey1", "lpushvalue2"));
-    assert(RedisMgr::GetInstance()->LPush("lpushkey1", "lpushvalue3"));
-    assert(RedisMgr::GetInstance()->RPop("lpushkey1", value));
-    assert(RedisMgr::GetInstance()->RPop("lpushkey1", value));
-    assert(RedisMgr::GetInstance()->LPop("lpushkey1", value));
-    assert(RedisMgr::GetInstance()->LPop("lpushkey2", value)==false);
-    RedisMgr::GetInstance()->Close();
-}
+//     assert(RedisMgr::GetInstance()->HSet("bloginfo","blogwebsite", "llfc.club"));
+//     assert(RedisMgr::GetInstance()->HGet("bloginfo","blogwebsite") != "");
+//     assert(RedisMgr::GetInstance()->ExistsKey("bloginfo"));
+//     assert(RedisMgr::GetInstance()->Del("bloginfo"));
+//     // assert(RedisMgr::GetInstance()->Del("bloginfo"));    这里会有作者写的其实返回true,我写的返回false 所以会使程序终止
+//     assert(RedisMgr::GetInstance()->ExistsKey("bloginfo") == false);
+//     assert(RedisMgr::GetInstance()->LPush("lpushkey1", "lpushvalue1"));
+//     assert(RedisMgr::GetInstance()->LPush("lpushkey1", "lpushvalue2"));
+//     assert(RedisMgr::GetInstance()->LPush("lpushkey1", "lpushvalue3"));
+//     assert(RedisMgr::GetInstance()->RPop("lpushkey1", value));
+//     assert(RedisMgr::GetInstance()->RPop("lpushkey1", value));
+//     assert(RedisMgr::GetInstance()->LPop("lpushkey1", value));
+//     assert(RedisMgr::GetInstance()->LPop("lpushkey2", value)==false);
+//     RedisMgr::GetInstance()->Close();
+// }
 
 int main(){
     Logger::Init("gateserver", LogLevel::Debug, true, "logs");

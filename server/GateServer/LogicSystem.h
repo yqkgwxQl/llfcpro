@@ -5,6 +5,7 @@
 #include <functional>
 #include <map>
 
+class UserInfo;
 class HttpConnection;
 using HttpHandler = std::function<void(std::shared_ptr<HttpConnection>)>;
 class LogicSystem: public Singleton<LogicSystem>{

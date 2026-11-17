@@ -310,8 +310,7 @@ bool RedisMgr::HSet(const std::string &key, const std::string &hkey, const std::
 }
 
 
-bool RedisMgr::HSet(const char* key, const char* hkey, const char* hvalue, size_t hvaluelen)
-{
+bool RedisMgr::HSet(const char* key, const char* hkey, const char* hvalue, size_t hvaluelen){
     const char* argv[4];
     size_t argvlen[4];
     argv[0] = "HSET";
@@ -345,8 +344,7 @@ bool RedisMgr::HSet(const char* key, const char* hkey, const char* hvalue, size_
 }
 
 //HGet操作-------------------
-std::string RedisMgr::HGet(const std::string &key, const std::string &hkey)
-{
+std::string RedisMgr::HGet(const std::string &key, const std::string &hkey){
     const char* argv[3];
     size_t argvlen[3];
     argv[0] = "HGET";
@@ -384,8 +382,7 @@ std::string RedisMgr::HGet(const std::string &key, const std::string &hkey)
 }
 
 //Del 操作-------------------
-bool RedisMgr::Del(const std::string &key)
-{
+bool RedisMgr::Del(const std::string &key){
     auto context = _con_pool->GetRedisConnection();
     if(context == nullptr){
         return false;
@@ -413,8 +410,7 @@ bool RedisMgr::Del(const std::string &key)
 }
 
 //判断键值是否存在-------------------
-bool RedisMgr::ExistsKey(const std::string &key)
-{
+bool RedisMgr::ExistsKey(const std::string &key){
     auto context = _con_pool->GetRedisConnection();
     if(context == nullptr){
         return false;
@@ -452,8 +448,7 @@ bool RedisMgr::ExistsKey(const std::string &key)
     Hash: LOGIN_COUNT
     ├── chatserver1 → "5"    ← 删除这个字段
     └── chatserver2 → "3"*/
-bool RedisMgr::HDel(const std::string& key, const std::string& field)
-{
+bool RedisMgr::HDel(const std::string& key, const std::string& field){
 	auto context = _con_pool->GetRedisConnection();
 	if (context == nullptr) {
 		return false;

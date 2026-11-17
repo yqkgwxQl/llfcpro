@@ -7,6 +7,7 @@
 #include "MysqlMgr.h"
 #include "const.h"
 #include "StatusGrpcClient.h"
+#include "data.h"
 
 //url 和 path ，初始化时，传的是/get_test,调用HandleGet是是通过_get_handlers[path](con);来调用回调函数的，也就是说
 // path,即_request.target() == /get_test??????????????????
@@ -145,9 +146,16 @@ LogicSystem::LogicSystem(){
         //查看数据库中是否有此用户---------------
         // int uid = MysqlMgr_2::GetInstance()->RegUser(name, email, pwd);
         int uid = MysqlMgr::GetInstance()->RegUser(name, email, pwd, icon);
-        if (uid == 0 || uid == -1) {
+        if (uid == 0) {
             LOGI << " user or email exist" << std::endl;
             root["error"] = ErrorCodes::UserExist;
+            std::string jsonstr = root.toStyledString();
+            beast::ostream(connection->_response.body()) << jsonstr;
+            return true;
+        }
+        else if (uid < 0) {
+            LOGI << " RPC:Failed" << std::endl;
+            root["error"] = ErrorCodes::RPCFailed;
             std::string jsonstr = root.toStyledString();
             beast::ostream(connection->_response.body()) << jsonstr;
             return true;
