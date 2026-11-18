@@ -105,14 +105,15 @@ void ChatSessionData::UpdateMsgStatus(const QString& unique_id, MsgStatus status
     return iter.value()->SetStatus(status);
 }
 
-void ChatSessionData::AppendMsg(const QString& unique_id, std::shared_ptr<ChatDataBase> msg){
+bool ChatSessionData::AppendMsg(const QString& unique_id, std::shared_ptr<ChatDataBase> msg){
     auto iter = _msg_map.find(unique_id);
     if(iter != _msg_map.end()){
         qDebug() << "该unique_id(" << unique_id << ")已在_msg_map里添加，这次添加无效";
-        return;
+        return false;
     }
     _msg_map.insert(unique_id, msg);
     _msg_list.push_back(msg);
+    return true;
 }
 
 std::shared_ptr<ChatDataBase> ChatSessionData::GetMsgByUniqueId(const QString& unique_id)const{

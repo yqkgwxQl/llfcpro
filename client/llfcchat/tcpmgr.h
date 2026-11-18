@@ -44,6 +44,7 @@ signals:
     void sig_friendlist_rsp(const QJsonObject& obj);
     void sig_receive_text_chat_msg(int from_uid);
     void sig_update_msg_status(int other_uid, std::shared_ptr<QVector<QString>> unique_ids_vector_ptr, MsgStatus status);
+    void sig_offline_msg_rsp(int other_uid, bool has_more, qint64 min_id);
 };
 
 #endif // TCPMGR_H

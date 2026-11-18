@@ -19,7 +19,7 @@
 #include "global.h"
 
 ChatPage::ChatPage(QWidget *parent)
-    : QWidget(parent), _cur_chat_uid(0)
+    : QWidget(parent), _cur_chat_uid(0), _min_msg_id(0), _loading_more(false), _has_more(true)
     , ui(new Ui::ChatPage)
 {
     ui->setupUi(this);
@@ -83,6 +83,7 @@ void ChatPage::SetChatUser(int other_uid){
         ui->title_lb->setText(QString::number(other_uid));
     }
 
+    loadOfflineMsgMore();
     auto msg_list = chat_session_data->GetMsgList();
     for(auto& msg : msg_list){
         AppendChatMsg(msg);
@@ -224,6 +225,16 @@ void ChatPage::slot_updata_msg_status(int other_uid, std::shared_ptr<QVector<QSt
     }
 }
 
+void ChatPage::slot_offline_msg_rsp(int other_uid, bool has_more, qint64 min_id){
+    _loading_more = false;
+    if(!has_more){
+        qDebug() << "没有更多离线消息";
+        _has_more = true;
+        return;
+    }
+    _min_msg_id = min_id;
+    loadOfflineMsgMore();
+}
 
 void ChatPage::AppendChatMsg(std::shared_ptr<ChatDataBase> msg){
     if(!msg)
@@ -275,5 +286,16 @@ void ChatPage::AppendChatMsg(std::shared_ptr<ChatDataBase> msg){
     if(msg_role == ChatRole::Self && msg->GetStatus() == MsgStatus::SENDING){
         _unrsp_items.insert(msg->GetUniqueId(), chat_item_base);
     }
+}
+
+void ChatPage::loadOfflineMsgMore(){
+    if(_loading_more || !_has_more)
+        return;
+    _loading_more = true;
+    QJsonObject obj;
+    obj["other_uid"] = _cur_chat_uid;
+    obj["begin"] = _min_msg_id;
+    obj["limit"] = 10;
+    emit TcpMgr::GetInstance()->sig_send_data(ReqId::ID_GET_OFFLINE_MESSAGE_REQ, QJsonDocument(obj).toJson(QJsonDocument::Compact));
 }
 

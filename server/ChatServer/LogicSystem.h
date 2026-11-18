@@ -16,6 +16,8 @@ class CSession;
 class LogicNode;
 class RecvNode;
 class Defer;
+class ChatMsgRecord;
+
 // using FunCallBack = std::function<void(std::shared_ptr<CSession>,const short& msg_id,const std::string& msg_data)>;
 using FunCallBack = std::function<void(std::shared_ptr<CSession>, const std::string& msg_data)>;
 
@@ -40,6 +42,7 @@ private:
     void AddFriendApply(std::shared_ptr<CSession> session, const std::string& msg_data);
     void AuthFriendApply(std::shared_ptr<CSession> session, const std::string& msg_data);
     void DealChatTextMsg(std::shared_ptr<CSession> session, const std::string& msg_data);
+    void GetOfflineMsg(std::shared_ptr<CSession> session, const std::string& msg_data);
     
     bool _b_stop;
     std::thread _work_thread;

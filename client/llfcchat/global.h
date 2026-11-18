@@ -51,6 +51,8 @@ enum ReqId{
     ID_GET_APPLY_LIST_RSP = 1041,
     ID_GET_FRIEND_LIST_REQ = 1042,	//同ID_GET_APPLY_LIST_REQ
     ID_GET_FRIEND_LIST_RSP = 1043,
+    ID_GET_OFFLINE_MESSAGE_REQ = 1044,	//client从database拉取离线消息
+    ID_GET_OFFLINE_MESSAGE_RSP = 1045,
 };
 
 enum Modules{

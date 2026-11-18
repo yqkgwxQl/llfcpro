@@ -71,3 +71,15 @@ bool MysqlMgr::AuthFriendApply(const int& from_uid, const int& to_uid){
 bool MysqlMgr::AddFriend(const int& from_uid, const int& to_uid, const std::string& back_name){
     return _dao.AddFriend(from_uid, to_uid, back_name);
 }
+
+bool MysqlMgr::SaveChatMessages(std::shared_ptr<ChatMsgRecord> chat_msg_record){
+    return _dao.SaveChatMessages(chat_msg_record);
+} 
+
+bool MysqlMgr::GetOfflineMessages(int from_uid, int to_uid, long long before_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out){
+    return _dao.GetOfflineMessages(from_uid, to_uid, before_id, limit, out);
+}
+
+bool MysqlMgr::MarkMessagesDelivered(const std::vector<std::string>& unique_ids){
+    return _dao.MarkMessagesDelivered(unique_ids);
+}

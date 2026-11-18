@@ -20,7 +20,7 @@ using tcp = boost::asio::ip::tcp;
 
 enum ErrorCodes {
 	Success = 0,
-	Error_Json = 1001,  //Json解析错误
+	Error_Json = 1001,  //Json解析错误	————>？？？感觉这个错误码很多地方已经误用了
 
 	RPCFailed = 1002,  //RPC请求错误
 	
@@ -38,11 +38,15 @@ enum ErrorCodes {
 	EmailNotExist = 1013, //邮箱不存在
 	RPCVarifyFailed = 1014, //验证的RPC请求错误
 	RPCStatusFailed = 1015, //状态的RPC请求错误
+	NotFriend = 1016, //用户A和用户B并非好友
 	
 	MysqlMgr_GetUser_error = 2016,// MysqlMgr::GetInstance()->GetUser()错误
 	MysqlMgr_GetApplyList_error = 2017,	//MysqlMgr::GetInstance()->GetApplyList()错误
 	MysqlMgr_GetFriendList_error = 2018,//MysqlMgr::GetInstance()->GetFriendList()错误
 	MysqlMgr_GetRelation_error = 2019,//MysqlMgr::GetInstance()->GetRelation()错误
+	MysqlMgr_SaveChatMessages_error = 2020,
+    MysqlMgr_GetOfflineMessages_error = 2021,
+    MysqlMgr_MarkMessagesDelivered_error = 2022,
 };
 
 enum MSG_IDS {
@@ -67,6 +71,8 @@ enum MSG_IDS {
 	ID_GET_APPLY_LIST_RSP = 1041,
 	ID_GET_FRIEND_LIST_REQ = 1042,	//同ID_GET_APPLY_LIST_REQ
 	ID_GET_FRIEND_LIST_RSP = 1043,
+	ID_GET_OFFLINE_MESSAGE_REQ = 1044,	//client从database拉取离线消息
+	ID_GET_OFFLINE_MESSAGE_RSP = 1045,
 };
 
 #define MAX_LENGTH  1024*2
@@ -92,4 +98,10 @@ public:
     }
 private:
     std::function<void()> _func;
+};
+
+enum class ChatMsgType{
+    TEXT = 0,
+    PIC = 1,
+    FILE = 2
 };

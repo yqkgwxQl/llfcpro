@@ -550,7 +550,7 @@ bool MysqlDao::GetApplyList(int uid, std::vector<std::shared_ptr<ApplyInfo>>& li
 
     SqlConnGuard guard(_mysqlPool.get(), std::move(con));
     // before_id <= 0 表示"首页"，不加游标条件；否则 id < before_id（往老的方向翻）
-    try{    //SQL 的执行顺序是：先 WHERE 过滤 → 再 ORDER BY 排序 → 最后 LIMIT 取前 N 条。
+    try{    //SQL 的执行顺序是：先 FROM -> JOIN -> WHERE 过滤 → 再 ORDER BY 排序 → 最后 LIMIT 取前 N 条。
         std::string sql;
         sql = "select apply.id, apply.from_uid, apply.status, user.name, user.nick, user.sex, user.icon, user.desc "
         "from friend_apply as apply join user on apply.from_uid = user.uid "
@@ -814,7 +814,7 @@ bool MysqlDao::AddFriend(const int& from_uid, const int& to_uid, const std::stri
         pstmt1->setString(3,back_name);
         int rowAffected = pstmt1->executeUpdate();
         if(rowAffected == 0)            
-            LOGE << "影响 0 行，条件没匹配到: from_uid=" << from_uid << " to_uid=" << to_uid;
+            LOGE << "影响 0 行，说明该记录已经存在: from_uid=" << from_uid << " to_uid=" << to_uid;
         //插入对方的好友数据
         std::unique_ptr<sql::PreparedStatement> pstmt2(guard->_con->prepareStatement("INSERT IGNORE INTO friend(self_id,friend_id,back) "
         "VALUES (?,?,?)"));
@@ -863,6 +863,145 @@ bool MysqlDao::AddFriend(const int& from_uid, const int& to_uid, const std::stri
         }catch(...){
             LOGE << "rollback()时出现未知错误";
         }
+        LOGE << "未知异常";
+        return false;
+    }
+}
+
+bool MysqlDao::SaveChatMessages(std::shared_ptr<ChatMsgRecord> chat_msg_record){
+    auto con = _mysqlPool->GetSqlConnection();
+    if (con == nullptr) {                        
+        LOGE << "获取MysqlPool里的sql连接失败";
+        return false;
+    }
+
+    SqlConnGuard guard(_mysqlPool.get(), std::move(con));
+
+    try{    //SQL 的执行顺序是：先 FROM -> JOIN -> WHERE 过滤 → 再 ORDER BY 排序 → 最后 LIMIT 取前 N 条。
+        std::string sql;
+        sql = "INSERT IGNORE INTO message (unique_id, from_uid, to_uid, thread_id, msg_type, content, chat_time, delivered) VALUES "
+        " (?, ?, ?, ?, ?, ?, ?, ?)";
+        
+        std::unique_ptr<sql::PreparedStatement> pstmt(guard->_con->prepareStatement(sql));    
+        pstmt->setString(1, chat_msg_record->_unique_id);
+        pstmt->setInt(2, chat_msg_record->_from_uid);
+        pstmt->setInt(3, chat_msg_record->_to_uid);
+        pstmt->setInt64(4, chat_msg_record->_thread_id);
+        pstmt->setInt(5, static_cast<int>(chat_msg_record->_msg_type));
+        pstmt->setString(6, chat_msg_record->_content);
+        pstmt->setString(7, chat_msg_record->_chat_time);
+        pstmt->setInt(8, chat_msg_record->_delivered);
+
+        int rowAffect = pstmt->executeUpdate();
+        if(rowAffect == 0)
+            LOGE << "影响 0 行，说明该记录已经存在";
+        return true;
+    }catch(const sql::SQLException& e){
+        if (IsConnectionLost(e.getErrorCode())) guard.markBroken();
+        LOGE << "SQLException: " << e.what()
+             << ", code=" << e.getErrorCode()
+             << ", SQLState=" << e.getSQLState();
+        return false;
+    }catch(const std::exception& e2){
+        LOGE << "std::exception: " << e2.what();
+        return false;
+    }catch(...){
+        LOGE << "未知异常";
+        return false;
+    }
+}
+
+bool MysqlDao::GetOfflineMessages(int from_uid, int to_uid, long long before_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out){
+    auto con = _mysqlPool->GetSqlConnection();
+    if (con == nullptr) {                        
+        LOGE << "获取MysqlPool里的sql连接失败";
+        return false;
+    }
+
+    SqlConnGuard guard(_mysqlPool.get(), std::move(con));
+
+    try{    //SQL 的执行顺序是：先 FROM -> JOIN -> WHERE 过滤 → 再 ORDER BY 排序 → 最后 LIMIT 取前 N 条。
+        std::string sql;
+        sql = "select message.id, message.unique_id, message.from_uid, message.thread_id, message.msg_type, message.content, message.chat_time ,message.delivered "
+        "from message  "
+        "where message.from_uid = ? "
+        "and message.to_uid = ? "
+        "and message.delivered = 1 ";
+        if(before_id > 0)
+            sql += "and message.id < ? ";
+        sql += "order by message.id DESC "
+        "LIMIT ?";
+        
+        std::unique_ptr<sql::PreparedStatement> pstmt(guard->_con->prepareStatement(sql));    //DESC ————> 拿最新的申请
+        pstmt->setInt(1, from_uid);
+        pstmt->setInt(2, to_uid);
+        if(before_id > 0){
+            pstmt->setInt64(3, before_id);
+            pstmt->setInt(4, limit);
+        }else{
+            pstmt->setInt(3, limit);
+        }
+        std::unique_ptr<sql::ResultSet> result(pstmt->executeQuery());
+        while(result->next()){
+            long long id = result->getInt64("id");
+            std::string unique_id = result->getString("unique_id");
+            int from_uid = result->getInt("from_uid");
+            long long thread_id = result->getInt64("thread_id");
+            int msg_type = result->getInt("msg_type");
+            std::string content = result->getString("content");
+            std::string chat_time = result->getString("chat_time");
+            int delivered = result->getInt("delivered");
+            out.push_back(std::make_shared<ChatMsgRecord>(id, unique_id, from_uid, to_uid, thread_id, static_cast<ChatMsgType>(msg_type), content, chat_time, delivered)); 
+        }
+        return true;
+    }catch(const sql::SQLException& e){
+        if (IsConnectionLost(e.getErrorCode())) guard.markBroken();
+        LOGE << "SQLException: " << e.what()
+             << ", code=" << e.getErrorCode()
+             << ", SQLState=" << e.getSQLState();
+        return false;
+    }catch(const std::exception& e2){
+        LOGE << "std::exception: " << e2.what();
+        return false;
+    }catch(...){
+        LOGE << "未知异常";
+        return false;
+    }
+}
+
+bool MysqlDao::MarkMessagesDelivered(const std::vector<std::string>& unique_ids){
+    auto con = _mysqlPool->GetSqlConnection();
+    if (con == nullptr) {                        
+        LOGE << "获取MysqlPool里的sql连接失败";
+        return false;
+    }
+
+    SqlConnGuard guard(_mysqlPool.get(), std::move(con));
+
+    try{    //SQL 的执行顺序是：先 FROM -> JOIN -> WHERE 过滤 → 再 ORDER BY 排序 → 最后 LIMIT 取前 N 条。
+        std::string sql;
+        sql = "UPDATE  message SET delivered = 1"
+        " WHERE unique_id = ?";
+        
+        std::unique_ptr<sql::PreparedStatement> pstmt(guard->_con->prepareStatement(sql));    
+        for(const auto& unique_id : unique_ids){
+            pstmt->setString(1, unique_id);
+
+            int rowAffect = pstmt->executeUpdate();
+            if(rowAffect == 0)
+                LOGE << "影响 0 行，说明该记录已经存在";
+        }
+        return true;
+    }catch(const sql::SQLException& e){
+        if (IsConnectionLost(e.getErrorCode())) guard.markBroken();
+        LOGE << "SQLException: " << e.what()
+             << ", code=" << e.getErrorCode()
+             << ", SQLState=" << e.getSQLState();
+        return false;
+    }catch(const std::exception& e2){
+        LOGE << "std::exception: " << e2.what();
+        return false;
+    }catch(...){
         LOGE << "未知异常";
         return false;
     }

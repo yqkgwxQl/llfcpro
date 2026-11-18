@@ -91,6 +91,7 @@ void LogicSystem::RejesterCallBack(){
     _callBacks[ID_GET_APPLY_LIST_REQ] = std::bind(GetApplyListHandler,this,std::placeholders::_1,std::placeholders::_2);
     _callBacks[ID_GET_FRIEND_LIST_REQ] = std::bind(GetFriendListHandler,this,std::placeholders::_1,std::placeholders::_2);
     _callBacks[ID_TEXT_CHAT_MSG_REQ] = std::bind(DealChatTextMsg,this,std::placeholders::_1,std::placeholders::_2);
+    _callBacks[ID_GET_OFFLINE_MESSAGE_REQ] = std::bind(DealChatTextMsg,this,std::placeholders::_1,std::placeholders::_2);
 }
 
 void LogicSystem::LoginHandler(std::shared_ptr<CSession> session,const std::string& msg_data){
@@ -510,8 +511,7 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
     // const int from_uid = root["from_uid"].asInt();
     const int to_uid = root["to_uid"].asInt();
     const Json::Value& text_array = root["text_array"];
-    LOGI << "用户A(uid:" << from_uid << ")发送text_msg给用户B(uid:" << to_uid << ")";
-    
+
     Json::Value return_value;
     return_value["error"] = ErrorCodes::Success;
     if(from_uid <= 0 || to_uid <= 0 || from_uid == to_uid
@@ -522,6 +522,41 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
         session->Send(ID_TEXT_CHAT_MSG_RSP, return_value.toStyledString());
         return;
     }
+
+    int relation = -1;
+    bool get_relation = MysqlMgr::GetInstance()->GetRelation(from_uid, to_uid, relation);
+    if(!get_relation){
+        return_value["error"] = ErrorCodes::MysqlMgr_GetRelation_error;
+        return;
+    }
+    if(relation != 1){
+        LOGE << "用户A(uid:" << from_uid << ")发送text_msg给用户B(uid:" << to_uid << "), 但是他们并不是好友, 此次发送信息无效";
+        return_value["error"] = ErrorCodes::NotFriend;
+        return;
+    }
+
+    // 正常时的日志
+    LOGI << "用户A(uid:" << from_uid << ")发送text_msg给好友——用户B(uid:" << to_uid << ")";
+    
+    //先将信息落库 
+    std::vector<std::string> unique_ids_vector;
+    for(const auto& text_obj : text_array){
+        if(text_obj.isObject()){
+            std::string unique_id = text_obj["unique_id"].asString();
+            unique_ids_vector.push_back(unique_id);
+            std::string content = text_obj["content"].asString();
+            std::string chat_time = text_obj["chat_time"].asString();
+            std::shared_ptr<ChatMsgRecord> chat_msg_record = std::make_shared<ChatMsgRecord>(0, unique_id, from_uid, to_uid, 0, ChatMsgType::TEXT, content, chat_time, 0);
+            bool is_save = MysqlMgr::GetInstance()->SaveChatMessages(chat_msg_record);
+            if(!is_save){
+                LOGE << "保存 from_uid(" << from_uid << ") to_uid(" << to_uid << ") unique_id(" << unique_id << ") to MysqlDataBase error";
+                return_value["error"] = MysqlMgr_SaveChatMessages_error;
+                return;
+            }
+        }
+    }
+
+    
     return_value["from_uid"] = from_uid;
     return_value["to_uid"] = to_uid;
     for(const auto& text_obj : text_array){
@@ -540,7 +575,7 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
     std::string peer_server_name = "";
     bool is_ip = RedisMgr::GetInstance()->Get(ipKey, peer_server_name);
     if(!is_ip){
-        LOGI << std::to_string(to_uid) + "对方不在线，暂时将发送的信息存储到数据库中" << std::endl;     //？？？？？？以后需要进行修改
+        LOGI << std::to_string(to_uid) + "对方不在线，已经暂时将发送的信息存储到数据库中" << std::endl;    
         return_value["online"] = false;
         return;
     }
@@ -558,6 +593,7 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
 
             std::string notify_str = notify.toStyledString();
             peer_session->Send(ID_NOTIFY_TEXT_CHAT_MSG_REQ, notify_str);
+            MysqlMgr::GetInstance()->MarkMessagesDelivered(unique_ids_vector);
         }else{
             LOGE << "未找到to_uid(" << to_uid << ")对应的session";
             return_value["online"] = false;
@@ -575,16 +611,75 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
             text_chat_data->set_unique_id(text_obj["unique_id"].asString());
             text_chat_data->set_msgcontent(text_obj["content"].asString());
             text_chat_data->set_msg_id(0);     //？？？？ 目前暂填0
-        }                                                                                           //？？？我感觉rtvalue没有任何作用
-        TextChatMsgRsp text_chat_msg_rsp = ChatGrpcClient::GetInstance()->NotifyTextChatMsg(peer_server_name, text_chat_msg_req, return_value);
+        }                                                                                          
+        TextChatMsgRsp text_chat_msg_rsp = ChatGrpcClient::GetInstance()->NotifyTextChatMsg(peer_server_name, text_chat_msg_req);
         if(text_chat_msg_rsp.error()){
             LOGI << "NotifyTextChatMsg failed, error_code: " <<  text_chat_msg_rsp.error();
             return_value["error"] = ErrorCodes::RPCFailed;
             return_value["online"] = false;             
         }else{
             return_value["online"] = true;
+            MysqlMgr::GetInstance()->MarkMessagesDelivered(unique_ids_vector);
         }
     }
+}
+
+void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::string& msg_data){
+    Json::Value root;
+    Json::Reader reader;
+    reader.parse(msg_data, root);
+    const int other_uid = root["other_uid"].asInt();
+    const int self_uid = static_cast<int>(session->GetUserId());
+    const long long begin = root.get("begin", 0).asInt64();
+    int limit = root.get("limit", 10).asInt();
+    if(limit <= 0 || limit > 10)
+        limit = 10;
+        
+    Json::Value return_value;
+    return_value["error"] = ErrorCodes::Success;
+    Defer defer([&return_value, &session](){
+        std::string return_string = return_value.toStyledString();
+        session->Send(ID_GET_OFFLINE_MESSAGE_RSP, return_string);
+    });
+    if(other_uid <= 0){
+        LOGE << "GetOfflineMsg 参数非法: other_uid=" << other_uid;
+        return_value["error"] = ErrorCodes::Error_Json;
+        session->Send(ID_TEXT_CHAT_MSG_RSP, return_value.toStyledString());
+        return;
+    }
+
+    int relation = -1;
+    bool get_relation = MysqlMgr::GetInstance()->GetRelation(self_uid, other_uid, relation);
+    if(!get_relation){
+        return_value["error"] = ErrorCodes::MysqlMgr_GetRelation_error;
+        return;
+    }
+    if(relation != 1){
+        LOGE << "用户A(uid:" << self_uid << ")拉取自己离线时用户B(uid:" << other_uid << ")给它发的msg, 但是它们并不是好友, 此次拉取信息无效";
+        return_value["error"] = ErrorCodes::NotFriend;
+        return;
+    }
+
+    LOGI << "self_uid(" << self_uid << ")拉取自己离线时other_uid(" << other_uid << ")给它发送的msg, begin: " << begin << " limit: " << limit;
+
+    std::vector<std::shared_ptr<ChatMsgRecord>> chat_msg_records_vector;  //？？这里推荐使用new还是在栈上呀？
+    bool is_get_offline_message = MysqlMgr::GetInstance()->GetOfflineMessages(other_uid, self_uid, begin, limit, chat_msg_records_vector);
+    if(!is_get_offline_message){
+        return_value["error"] = ErrorCodes::MysqlMgr_GetOfflineMessages_error;
+        return;
+    }
+    for(const auto chat_msg_record_ptr : chat_msg_records_vector){  //？？？这里如何理解呢？用不用&？
+        return_value["min_id"] = chat_msg_record_ptr->_id;
+        Json::Value chat_msg_obj;
+        // chat_msg_obj["id"] = chat_msg_record_ptr->_id;
+        chat_msg_obj["unique_id"] = chat_msg_record_ptr->_unique_id;
+        chat_msg_obj["msg_type"] = static_cast<int>(chat_msg_record_ptr->_msg_type);
+        chat_msg_obj["content"] = chat_msg_record_ptr->_content;
+        chat_msg_obj["chat_time"] = chat_msg_record_ptr->_chat_time;
+        return_value["chat_msg_list"].append(chat_msg_obj);
+    }
+    return_value["from_uid"] = other_uid;
+    return_value["has_more"] = (static_cast<int>(chat_msg_records_vector.size()) == limit);
 }
 
 //感觉这里也可以写成bool LogicSystem::GetBaseInfo(std::string& base_key,std::shared_ptr<UserInfo> &userinfo)？？？？？？？？？？？？？？？

@@ -4,6 +4,8 @@
 class UserInfo;
 class ApplyInfo;
 class FriendInfo;
+class ChatMsgRecord;
+
 class MysqlDao{
 
 public:
@@ -28,6 +30,10 @@ public:
 
     bool AuthFriendApply(const int& from_uid, const int& to_uid);
     bool AddFriend(const int& from_uid, const int& to_uid, const std::string& back_name);
+
+    bool SaveChatMessages(std::shared_ptr<ChatMsgRecord> chat_msg_record);
+    bool GetOfflineMessages(int from_uid, int to_uid, long long before_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out);
+    bool MarkMessagesDelivered(const std::vector<std::string>& unique_ids);
 private:
     std::unique_ptr<MysqlPool> _mysqlPool;
 };

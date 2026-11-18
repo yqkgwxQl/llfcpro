@@ -62,7 +62,7 @@ public:
     //跨服务器获取用户基本信息
     bool GetBaseInfo(std::string base_key, int uid, std::shared_ptr<UserInfo>& userinfo);
     // 转发聊天消息到对方服务器
-    TextChatMsgRsp NotifyTextChatMsg(std::string server_name, const TextChatMsgReq& req, const Json::Value& rtvalue); //？？？我感觉rtvalue没有任何作用
+    TextChatMsgRsp NotifyTextChatMsg(std::string server_name, const TextChatMsgReq& req); 
     ~ChatGrpcClient();
 private:
     ChatGrpcClient();

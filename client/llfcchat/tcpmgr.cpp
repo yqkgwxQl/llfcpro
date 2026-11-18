@@ -314,19 +314,28 @@ void TcpMgr::initHandlers(){
         Q_UNUSED(len);
         // qDebug().noquote() << "handle id is " << reqId << " data is:\n" << prettyJson(data);
         QJsonDocument jsonDoc = QJsonDocument::fromJson(data);
-        if(jsonDoc.isNull()){
-            qDebug() << "Failed to create QJsonDocument.";
-            // return;      这三个return注释掉是因为必须最后发送信号
+        if(jsonDoc.isNull() || !jsonDoc.isObject()){
+            qDebug() << "1041: 非法Json";
+            QJsonObject err_obj;
+            err_obj["erro"] = ErrorCodes::ERR_JSON;
+            emit sig_applylist_rsp(err_obj);
+            return;
         }
         QJsonObject jsonObj = jsonDoc.object();
         if(!jsonObj.contains("error")){
-            qDebug() << "jsonObj为空或此jsonObj不属于业务逻辑";
-            // return;
+            qDebug() << "1041: 并非本系统的业务回包";
+            QJsonObject err_obj;
+            err_obj["erro"] = ErrorCodes::ERR_JSON;
+            emit sig_applylist_rsp(err_obj);
+            return;
         }
         auto err = jsonObj["error"].toInt();
         if(err != ErrorCodes::SUCCESS){
-            qDebug() << "get_apply_list error,err is :" << err;
-            // return;
+            qDebug() << "1041: 服务端返回错误" << err;
+            QJsonObject err_obj;
+            err_obj["erro"] = err;
+            emit sig_applylist_rsp(err_obj);
+            return;
         }
 
         //除了添加applylist到applyfriendpage里，还需要加入客户端自己的UserMgr里
@@ -340,18 +349,27 @@ void TcpMgr::initHandlers(){
         // qDebug().noquote() << "handle id is " << reqId << " data is:\n" << prettyJson(data);
         QJsonDocument jsonDoc = QJsonDocument::fromJson(data);
         if(jsonDoc.isNull()){
-            qDebug() << "Failed to create QJsonDocument.";
-            // return;      这三个return注释掉是因为必须最后发送信号
+            qDebug() << "1043: 非法Json";
+            QJsonObject err_obj;
+            err_obj["error"] = ErrorCodes::ERR_JSON;
+            emit sig_friendlist_rsp(err_obj);
+            return;
         }
         QJsonObject jsonObj = jsonDoc.object();
         if(!jsonObj.contains("error")){
-            qDebug() << "jsonObj为空或此jsonObj不属于业务逻辑";
-            // return;
+            qDebug() << "1043: jsonObj为空或此jsonObj不属于业务逻辑";
+            QJsonObject err_obj;
+            err_obj["error"] = ErrorCodes::ERR_JSON;
+            emit sig_friendlist_rsp(err_obj);
+            return;
         }
         auto err = jsonObj["error"].toInt();
         if(err != ErrorCodes::SUCCESS){
-            qDebug() << "get_friend_list error,err is :" << err;
-            // return;
+            qDebug() << "1043: 服务器返回错误,err is :" << err;
+            QJsonObject err_obj;
+            err_obj["error"] = err;
+            emit sig_friendlist_rsp(err_obj);
+            return;
         }
 
         //除了添加friendlist到ChatUserList里，还需要加入客户端自己的UserMgr里
@@ -423,32 +441,81 @@ void TcpMgr::initHandlers(){
         QJsonDocument jsonDoc = QJsonDocument::fromJson(data);
         if(jsonDoc.isNull()){
             qDebug() << "Failed to create QJsonDocument.";
-            // return;      这三个return注释掉是因为必须最后发送信号
+            return;
         }
         QJsonObject jsonObj = jsonDoc.object();
         if(!jsonObj.contains("error")){
             qDebug() << "jsonObj为空或此jsonObj不属于业务逻辑";
-            // return;
+            return;
         }
         auto err = jsonObj["error"].toInt();
         if(err != ErrorCodes::SUCCESS){
             qDebug() << "receive notify_text_chat_msg_req error,err is :" << err;
-            // return;
+            return;
         }
-
+        const QJsonArray text_array = jsonObj["text_array"].toArray();
+        if(text_array.isEmpty()){
+            qDebug() << "1019: text_array 为空，丢弃";
+            return;
+        }
         qDebug() << "receive notify_text_chat_msg_req Success";
+
         int from_uid = jsonObj["from_uid"].toInt();
         auto chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(from_uid);
         if(!chat_session_data)
             return;
-        for(const auto one_msg_doc : jsonObj["text_array"].toArray()){
+        bool is_has_new_message = false;
+        for(const auto& one_msg_doc : jsonObj["text_array"].toArray()){
             QJsonObject msg_obj = one_msg_doc.toObject();
             QString unique_id = msg_obj["unique_id"].toString();
             QString content = msg_obj["content"].toString();
             QString chat_time = msg_obj["chat_time"].toString();
-            chat_session_data->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, from_uid, ChatMsgType::TEXT, content, MsgStatus::RECEIVED, chat_time));
+            auto text_chat_data = std::make_shared<TextChatData>(unique_id, from_uid, content, MsgStatus::RECEIVED, chat_time);
+            if(chat_session_data->AppendMsg(unique_id, text_chat_data))
+                is_has_new_message = true;
         }
-        emit sig_receive_text_chat_msg(from_uid);
+        if(is_has_new_message)
+            emit sig_receive_text_chat_msg(from_uid);
+    });
+    // ID_GET_OFFLINE_MESSAGE_RSP
+    _handlers.insert(ReqId::ID_GET_OFFLINE_MESSAGE_RSP,[this](ReqId reqId,int len,QByteArray data){
+        //忽略len参数
+        Q_UNUSED(len);
+        // qDebug().noquote() << "handle id is " << reqId << " data is:\n" << prettyJson(data);
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(data);
+        if(jsonDoc.isNull()){
+            qDebug() << "1045: Failed to create QJsonDocument.";
+            return;
+        }
+        QJsonObject jsonObj = jsonDoc.object();
+        if(!jsonObj.contains("error")){
+            qDebug() << "1045: jsonObj为空或此jsonObj不属于业务逻辑";
+            return;
+        }
+        auto err = jsonObj["error"].toInt();
+        if(err != ErrorCodes::SUCCESS){
+            qDebug() << "1045: receive get_offline_message_rsp error,err is :" << err;
+            return;
+        }
+
+        qDebug() << "receive get_offline_message_rsp Success";
+
+        int other_uid = jsonObj["from_uid"].toInt();
+        bool has_more = jsonObj["has_more"].toBool();
+        qint64 min_id = static_cast<qint64>(jsonObj["min_id"].toDouble());
+        auto chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(other_uid);
+        if(!chat_session_data)
+            return;
+        for(const auto& chat_msg_doc : jsonObj["chat_msg_list"].toArray()){
+            const QJsonObject obj_2 = chat_msg_doc.toObject();
+            // qint64 id = static_cast<qint64>(obj_2["id"].toDouble());
+            QString unique_id = obj_2["unique_id"].toString();
+            ChatMsgType msg_type = static_cast<ChatMsgType>(obj_2["msg_type"].toInt());
+            QString content = obj_2["content"].toString();
+            QString chat_time = obj_2["chat_time"].toString();
+            chat_session_data->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, other_uid, msg_type, content, MsgStatus::RECEIVED, chat_time));
+        }
+        emit sig_offline_msg_rsp(other_uid, has_more, min_id);
     });
 }
 

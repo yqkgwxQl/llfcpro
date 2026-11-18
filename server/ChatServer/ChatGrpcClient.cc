@@ -135,7 +135,7 @@ AuthFriendRsp ChatGrpcClient::NotifyAuthFriend(std::string& server_name, const A
 }
 
 TextChatMsgRsp ChatGrpcClient::NotifyTextChatMsg(std::string server_name, 
-    const TextChatMsgReq& req, const Json::Value& rtvalue) {
+    const TextChatMsgReq& req) {
     LOGI << "RPC NotifyTextChatMsg -> " << server_name
      << " from=" << req.fromuid() << " to=" << req.touid()
      << " count=" << req.textmsgs_size();
