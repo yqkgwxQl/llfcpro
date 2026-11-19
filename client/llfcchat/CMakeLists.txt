@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 project(llfcchat LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Network)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Network Sql)
 
 qt_standard_project_setup()
 set (CMAKE_AUTORCC ON)
@@ -61,6 +61,7 @@ qt_add_executable(llfcchat
     logger.h logger.cpp
     authenfriend.h authenfriend.cpp authenfriend.ui
     findhasfrienddlg.h findhasfrienddlg.cpp findhasfrienddlg.ui
+    chatlocaldb.h chatlocaldb.cpp
 
 
 
@@ -71,6 +72,7 @@ target_link_libraries(llfcchat
         Qt::Core
         Qt::Widgets
         Qt::Network
+        Qt::Sql
 )
 
 target_include_directories(llfcchat PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

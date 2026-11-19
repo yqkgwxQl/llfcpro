@@ -501,11 +501,13 @@ void TcpMgr::initHandlers(){
         qDebug() << "receive get_offline_message_rsp Success";
 
         int other_uid = jsonObj["from_uid"].toInt();
+        int self_uid = UserMgr::GetInstance()->GetUid();
         bool has_more = jsonObj["has_more"].toBool();
         qint64 min_id = static_cast<qint64>(jsonObj["min_id"].toDouble());
         auto chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(other_uid);
         if(!chat_session_data)
             return;
+        qDebug() << "chat_msg_list" << " " << jsonObj["chat_msg_list"].toArray();
         for(const auto& chat_msg_doc : jsonObj["chat_msg_list"].toArray()){
             const QJsonObject obj_2 = chat_msg_doc.toObject();
             // qint64 id = static_cast<qint64>(obj_2["id"].toDouble());
@@ -514,6 +516,7 @@ void TcpMgr::initHandlers(){
             QString content = obj_2["content"].toString();
             QString chat_time = obj_2["chat_time"].toString();
             chat_session_data->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, other_uid, msg_type, content, MsgStatus::RECEIVED, chat_time));
+            qDebug() << "添加一条离线时的数据(unique_id :" << unique_id << " from_uid: " << other_uid  << ")到用户(self_uid: " << self_uid << ")缓存里";
         }
         emit sig_offline_msg_rsp(other_uid, has_more, min_id);
     });

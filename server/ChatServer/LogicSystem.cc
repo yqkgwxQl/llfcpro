@@ -91,7 +91,7 @@ void LogicSystem::RejesterCallBack(){
     _callBacks[ID_GET_APPLY_LIST_REQ] = std::bind(GetApplyListHandler,this,std::placeholders::_1,std::placeholders::_2);
     _callBacks[ID_GET_FRIEND_LIST_REQ] = std::bind(GetFriendListHandler,this,std::placeholders::_1,std::placeholders::_2);
     _callBacks[ID_TEXT_CHAT_MSG_REQ] = std::bind(DealChatTextMsg,this,std::placeholders::_1,std::placeholders::_2);
-    _callBacks[ID_GET_OFFLINE_MESSAGE_REQ] = std::bind(DealChatTextMsg,this,std::placeholders::_1,std::placeholders::_2);
+    _callBacks[ID_GET_OFFLINE_MESSAGE_REQ] = std::bind(GetOfflineMsg,this,std::placeholders::_1,std::placeholders::_2);
 }
 
 void LogicSystem::LoginHandler(std::shared_ptr<CSession> session,const std::string& msg_data){
@@ -663,6 +663,7 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
     LOGI << "self_uid(" << self_uid << ")拉取自己离线时other_uid(" << other_uid << ")给它发送的msg, begin: " << begin << " limit: " << limit;
 
     std::vector<std::shared_ptr<ChatMsgRecord>> chat_msg_records_vector;  //？？这里推荐使用new还是在栈上呀？
+    std::vector<std::string> unique_ids_vector;
     bool is_get_offline_message = MysqlMgr::GetInstance()->GetOfflineMessages(other_uid, self_uid, begin, limit, chat_msg_records_vector);
     if(!is_get_offline_message){
         return_value["error"] = ErrorCodes::MysqlMgr_GetOfflineMessages_error;
@@ -673,6 +674,7 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
         Json::Value chat_msg_obj;
         // chat_msg_obj["id"] = chat_msg_record_ptr->_id;
         chat_msg_obj["unique_id"] = chat_msg_record_ptr->_unique_id;
+        unique_ids_vector.push_back(chat_msg_record_ptr->_unique_id);
         chat_msg_obj["msg_type"] = static_cast<int>(chat_msg_record_ptr->_msg_type);
         chat_msg_obj["content"] = chat_msg_record_ptr->_content;
         chat_msg_obj["chat_time"] = chat_msg_record_ptr->_chat_time;
@@ -680,6 +682,8 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
     }
     return_value["from_uid"] = other_uid;
     return_value["has_more"] = (static_cast<int>(chat_msg_records_vector.size()) == limit);
+
+    MysqlMgr::GetInstance()->MarkMessagesDelivered(unique_ids_vector);
 }
 
 //感觉这里也可以写成bool LogicSystem::GetBaseInfo(std::string& base_key,std::shared_ptr<UserInfo> &userinfo)？？？？？？？？？？？？？？？

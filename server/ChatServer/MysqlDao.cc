@@ -926,7 +926,7 @@ bool MysqlDao::GetOfflineMessages(int from_uid, int to_uid, long long before_id,
         "from message  "
         "where message.from_uid = ? "
         "and message.to_uid = ? "
-        "and message.delivered = 1 ";
+        "and message.delivered = 0 ";
         if(before_id > 0)
             sql += "and message.id < ? ";
         sql += "order by message.id DESC "

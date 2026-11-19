@@ -61,6 +61,7 @@ ChatPage::ChatPage(QWidget *parent)
             }
         }
     });
+    connect(TcpMgr::GetInstance().get(), &TcpMgr::sig_offline_msg_rsp, this, &ChatPage::slot_offline_msg_rsp);
 }
 
 ChatPage::~ChatPage()
@@ -84,6 +85,7 @@ void ChatPage::SetChatUser(int other_uid){
     }
 
     loadOfflineMsgMore();
+
     auto msg_list = chat_session_data->GetMsgList();
     for(auto& msg : msg_list){
         AppendChatMsg(msg);
@@ -226,6 +228,9 @@ void ChatPage::slot_updata_msg_status(int other_uid, std::shared_ptr<QVector<QSt
 }
 
 void ChatPage::slot_offline_msg_rsp(int other_uid, bool has_more, qint64 min_id){
+    if(_cur_chat_uid == other_uid){
+        SetChatUser(other_uid);
+    }
     _loading_more = false;
     if(!has_more){
         qDebug() << "没有更多离线消息";
