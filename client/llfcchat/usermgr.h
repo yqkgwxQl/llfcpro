@@ -38,6 +38,7 @@ public:
     void AddToFriendMap(std::shared_ptr<SearchInfo> search_info);
     void AppendFriendList(QJsonArray array);
     void RemoveOneFriend(int friend_uid);
+    void ClearAll();
 private:
     UserMgr();
     QString _token;

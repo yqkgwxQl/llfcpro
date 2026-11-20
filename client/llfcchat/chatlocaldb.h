@@ -4,6 +4,8 @@
 #include "singleton.h"
 #include <QSqlDatabase>
 
+class ChatDataBase;
+
 class ChatLocalDb: public Singleton<ChatLocalDb>
 {
     friend class Singleton<ChatLocalDb>;
@@ -12,6 +14,12 @@ public:
 
     bool Open(int self_uid);        // 打开chatcache_<self_uid>.db(why要传self_uid,因为可能切换用户导致self_uid不一样，要切到self_uid对应db上) 然后需要建表
     bool Close();
+    bool SaveMsg(int other_uid, const std::shared_ptr<ChatDataBase> msg);
+    bool UpdateStatus(const QString& unique_id, MsgStatus status);
+    bool LoadSession();
+    bool Clear();
+
+    int GetSelfUid();
 private:
     ChatLocalDb();
     bool CreateTables();

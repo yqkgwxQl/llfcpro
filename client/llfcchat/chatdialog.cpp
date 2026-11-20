@@ -274,7 +274,8 @@ void ChatDialog::slot_receive_text_chat_msg(int list_item_uid){
 
     // 如果当前正在和这个人聊天，右侧立刻重绘
     if(ui->chat_page->GetCurChatUid() == list_item_uid){
-        ui->chat_page->SetChatUser(list_item_uid);
+        // ui->chat_page->SetChatUser(list_item_uid);
+        ui->chat_page->refreshChatView();
     }
 }
 

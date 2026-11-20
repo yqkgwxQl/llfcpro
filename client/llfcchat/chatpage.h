@@ -22,7 +22,7 @@ class ChatPage : public QWidget
 public:
     explicit ChatPage(QWidget *parent = nullptr);
     ~ChatPage();
-
+    void refreshChatView();
     void SetChatUser(int other_uid);
     int GetCurChatUid();
     void clearItems();
@@ -31,7 +31,7 @@ protected:
 private slots:
     void on_send_btn_clicked();
     void slot_updata_msg_status(int other_uid, std::shared_ptr<QVector<QString>> unique_ids_vector_ptr, MsgStatus status);
-    void slot_offline_msg_rsp(int other_uid, bool has_more, qint64 min_id);
+    void slot_offline_msg_rsp(int other_uid, bool has_more, qint64 max_id);
 private:
     void AppendChatMsg(std::shared_ptr<ChatDataBase> msg);  //渲染一条消息气泡
 
@@ -43,7 +43,7 @@ private:
     //拉取远端离线消息
     void loadOfflineMsgMore();
     // int _fail_count;
-    qint64 _min_msg_id;
+    qint64 _max_msg_id;
     bool _loading_more;
     bool _has_more;
 };

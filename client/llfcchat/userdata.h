@@ -182,7 +182,7 @@ public:
     int GetOtherUid()const;
     const QVector<std::shared_ptr<ChatDataBase>>& GetMsgList()const;
     void UpdateMsgStatus(const QString& unique_id, MsgStatus status);
-    bool AppendMsg(const QString& unique_id, std::shared_ptr<ChatDataBase> msg);   //保持先后顺序
+    bool AppendMsg(const QString& unique_id, std::shared_ptr<ChatDataBase> msg, bool persist);   //保持先后顺序
     std::shared_ptr<ChatDataBase> GetMsgByUniqueId(const QString& unique_id)const;   //unique_id -> msg
     QString GetLastMsgContent()const;
     QString GetLastMsgTime()const;

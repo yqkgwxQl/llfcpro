@@ -1,4 +1,5 @@
 #include "userdata.h"
+#include "chatlocaldb.h"
 
 SearchInfo::SearchInfo(int uid, QString name,QString nick, QString desc, int sex, QString icon, int relation)
     :_uid(uid), _name(name), _nick(nick), _desc(desc), _sex(sex), _icon(icon), _relation(relation){
@@ -102,10 +103,12 @@ void ChatSessionData::UpdateMsgStatus(const QString& unique_id, MsgStatus status
         qDebug() << "未能找到该unique_id(" << unique_id << ")对应的std::shared_ptr<ChatDataBase>";
         return;
     }
-    return iter.value()->SetStatus(status);
+    ChatLocalDb::GetInstance()->UpdateStatus(unique_id, status);
+    iter.value()->SetStatus(status);
+    return;
 }
 
-bool ChatSessionData::AppendMsg(const QString& unique_id, std::shared_ptr<ChatDataBase> msg){
+bool ChatSessionData::AppendMsg(const QString& unique_id, std::shared_ptr<ChatDataBase> msg, bool persist){
     auto iter = _msg_map.find(unique_id);
     if(iter != _msg_map.end()){
         qDebug() << "该unique_id(" << unique_id << ")已在_msg_map里添加，这次添加无效";
@@ -113,6 +116,10 @@ bool ChatSessionData::AppendMsg(const QString& unique_id, std::shared_ptr<ChatDa
     }
     _msg_map.insert(unique_id, msg);
     _msg_list.push_back(msg);
+
+    if(persist){
+        ChatLocalDb::GetInstance()->SaveMsg(_other_uid, msg);
+    }
     return true;
 }
 

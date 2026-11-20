@@ -52,6 +52,8 @@ std::shared_ptr<UserInfo> UserMgr::GetFriendInfoByUid(int friend_uid){
 }
 
 std::shared_ptr<ChatSessionData> UserMgr::GetChatSessionByUid(int other_uid){
+    if(other_uid <= 0)
+        return nullptr;
     auto iter = _chat_session_data_map.find(other_uid);
     if(iter == _chat_session_data_map.end()){
         qDebug() << "other_uid error! 未找到other_uid(" << other_uid << ")对应的ChatSessionData, 现在进行添加";
@@ -209,4 +211,10 @@ void UserMgr::RemoveOneFriend(int friend_uid){
         _friend_map.remove(friend_uid);
     }
     return;
+}
+
+void UserMgr::ClearAll(){
+    _chat_session_data_map.clear();
+    _friend_map.clear();
+    _apply_list.clear();
 }

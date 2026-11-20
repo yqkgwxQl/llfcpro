@@ -19,7 +19,7 @@
 #include "global.h"
 
 ChatPage::ChatPage(QWidget *parent)
-    : QWidget(parent), _cur_chat_uid(0), _min_msg_id(0), _loading_more(false), _has_more(true)
+    : QWidget(parent), _cur_chat_uid(0), _max_msg_id(0), _loading_more(false), _has_more(true)
     , ui(new Ui::ChatPage)
 {
     ui->setupUi(this);
@@ -56,7 +56,7 @@ ChatPage::ChatPage(QWidget *parent)
             if(chat_session_data){
                 for(auto& chat_data_base : chat_session_data->GetMsgList()){
                     if(chat_data_base && chat_data_base->GetStatus() == MsgStatus::SENDING)
-                        chat_data_base->SetStatus(MsgStatus::FAILED);
+                        chat_session_data->UpdateMsgStatus(chat_data_base->GetUniqueId(), MsgStatus::FAILED);
                 }
             }
         }
@@ -69,7 +69,23 @@ ChatPage::~ChatPage()
     delete ui;
 }
 
+void ChatPage::refreshChatView(){
+    //在clearItems()之前，否则会显示空白，无法再次AppendChatMsg()显示新气泡了
+    std::shared_ptr<ChatSessionData> chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(_cur_chat_uid);
+    if(!chat_session_data)
+        return;
+
+    clearItems();
+
+    auto msg_list = chat_session_data->GetMsgList();
+    for(auto& msg : msg_list){
+        AppendChatMsg(msg);
+    }
+}
+
 void ChatPage::SetChatUser(int other_uid){
+    if(_cur_chat_uid == other_uid)
+        return;
     std::shared_ptr<ChatSessionData> chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(other_uid);
     if(!chat_session_data)
         return;
@@ -84,12 +100,16 @@ void ChatPage::SetChatUser(int other_uid){
         ui->title_lb->setText(QString::number(other_uid));
     }
 
+    _max_msg_id   = 0;
+    _has_more     = true;
+    _loading_more = false;
     loadOfflineMsgMore();
 
     auto msg_list = chat_session_data->GetMsgList();
     for(auto& msg : msg_list){
         AppendChatMsg(msg);
     }
+
 }
 
 int ChatPage::GetCurChatUid(){
@@ -194,7 +214,7 @@ void ChatPage::on_send_btn_clicked(){
             chat_data_base = std::make_shared<ChatDataBase>(msg_unique_id, self_uid, msg_type, one.content, MsgStatus::SENDING, chat_time);
 
         //先落地本地缓存
-        chat_session_data->AppendMsg(msg_unique_id, chat_data_base);
+        chat_session_data->AppendMsg(msg_unique_id, chat_data_base, true);
         //然后再添加气泡
         AppendChatMsg(chat_data_base);
         //发送数据------------
@@ -227,18 +247,23 @@ void ChatPage::slot_updata_msg_status(int other_uid, std::shared_ptr<QVector<QSt
     }
 }
 
-void ChatPage::slot_offline_msg_rsp(int other_uid, bool has_more, qint64 min_id){
+//这里使用SetChatUser虽然是对的，但是感觉破坏了SetChatUser的完整性，让SetChatUser相当于有刷新界面的功能
+void ChatPage::slot_offline_msg_rsp(int other_uid, bool has_more, qint64 max_id){
     if(_cur_chat_uid == other_uid){
-        SetChatUser(other_uid);
+        // SetChatUser(other_uid);
+        refreshChatView();
+
+        //移进去是为了，不能让旧对话缓存污染新对话缓存
+        _loading_more = false;
+        _has_more =  has_more;
+        if(!has_more){
+            qDebug() << "没有更多离线消息";
+            return;
+        }
+        _max_msg_id = max_id;
+        loadOfflineMsgMore();
     }
-    _loading_more = false;
-    if(!has_more){
-        qDebug() << "没有更多离线消息";
-        _has_more = true;
-        return;
-    }
-    _min_msg_id = min_id;
-    loadOfflineMsgMore();
+
 }
 
 void ChatPage::AppendChatMsg(std::shared_ptr<ChatDataBase> msg){
@@ -299,7 +324,7 @@ void ChatPage::loadOfflineMsgMore(){
     _loading_more = true;
     QJsonObject obj;
     obj["other_uid"] = _cur_chat_uid;
-    obj["begin"] = _min_msg_id;
+    obj["after_id"] = _max_msg_id;
     obj["limit"] = 10;
     emit TcpMgr::GetInstance()->sig_send_data(ReqId::ID_GET_OFFLINE_MESSAGE_REQ, QJsonDocument(obj).toJson(QJsonDocument::Compact));
 }

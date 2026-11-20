@@ -7,6 +7,7 @@
 #include "userdata.h"
 #include "applyfriendpage.h"
 #include <QVector>
+#include "chatlocaldb.h"
 
 
 namespace {
@@ -175,10 +176,22 @@ void TcpMgr::initHandlers(){
 
         std::shared_ptr<UserInfo> user_info(std::make_shared<UserInfo>(jsonObj["uid"].toInt(),jsonObj["name"].toString(),
         jsonObj["nick"].toString(),jsonObj["icon"].toString(),jsonObj["sex"].toInt(),jsonObj["desc"].toString()));
+        const int uid = user_info->_uid;
         UserMgr::GetInstance()->SetUserInfo(user_info);
         UserMgr::GetInstance()->SetToken(jsonObj["token"].toString());
         qDebug() << "name :" <<jsonObj["name"].toString() << "uid :" << jsonObj["uid"].toInt() << "token :" << jsonObj["token"].toString();
         // UserMgr::GetInstance()->AppendFriendList(jsonObj["apply_list"].toArray());
+
+        const int prev_uid = ChatLocalDb::GetInstance()->GetSelfUid();
+        if(prev_uid != 0 && prev_uid != uid){
+            qDebug() << "切换账号：" << prev_uid << "->" << uid << "，清理上一个账号的缓存";
+            UserMgr::GetInstance()->ClearAll();
+        }
+
+        if(ChatLocalDb::GetInstance()->Open(uid)){
+            ChatLocalDb::GetInstance()->LoadSession();
+        }
+
         emit sig_switch_chatdlg();
     });
     //ID_SEARCH_USER_RSP
@@ -471,7 +484,7 @@ void TcpMgr::initHandlers(){
             QString content = msg_obj["content"].toString();
             QString chat_time = msg_obj["chat_time"].toString();
             auto text_chat_data = std::make_shared<TextChatData>(unique_id, from_uid, content, MsgStatus::RECEIVED, chat_time);
-            if(chat_session_data->AppendMsg(unique_id, text_chat_data))
+            if(chat_session_data->AppendMsg(unique_id, text_chat_data, true))
                 is_has_new_message = true;
         }
         if(is_has_new_message)
@@ -495,6 +508,9 @@ void TcpMgr::initHandlers(){
         auto err = jsonObj["error"].toInt();
         if(err != ErrorCodes::SUCCESS){
             qDebug() << "1045: receive get_offline_message_rsp error,err is :" << err;
+            const int other_uid = jsonObj["from_uid"].toInt();
+            if(other_uid > 0)
+                emit sig_offline_msg_rsp(other_uid, false, 0);   // ★ 让 ChatPage 复位 _loading_more
             return;
         }
 
@@ -503,7 +519,7 @@ void TcpMgr::initHandlers(){
         int other_uid = jsonObj["from_uid"].toInt();
         int self_uid = UserMgr::GetInstance()->GetUid();
         bool has_more = jsonObj["has_more"].toBool();
-        qint64 min_id = static_cast<qint64>(jsonObj["min_id"].toDouble());
+        qint64 max_id = static_cast<qint64>(jsonObj["max_id"].toDouble());
         auto chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(other_uid);
         if(!chat_session_data)
             return;
@@ -515,10 +531,10 @@ void TcpMgr::initHandlers(){
             ChatMsgType msg_type = static_cast<ChatMsgType>(obj_2["msg_type"].toInt());
             QString content = obj_2["content"].toString();
             QString chat_time = obj_2["chat_time"].toString();
-            chat_session_data->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, other_uid, msg_type, content, MsgStatus::RECEIVED, chat_time));
+            chat_session_data->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, other_uid, msg_type, content, MsgStatus::RECEIVED, chat_time), true);
             qDebug() << "添加一条离线时的数据(unique_id :" << unique_id << " from_uid: " << other_uid  << ")到用户(self_uid: " << self_uid << ")缓存里";
         }
-        emit sig_offline_msg_rsp(other_uid, has_more, min_id);
+        emit sig_offline_msg_rsp(other_uid, has_more, max_id);
     });
 }
 
