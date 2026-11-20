@@ -76,8 +76,8 @@ bool MysqlMgr::SaveChatMessages(std::shared_ptr<ChatMsgRecord> chat_msg_record){
     return _dao.SaveChatMessages(chat_msg_record);
 } 
 
-bool MysqlMgr::GetOfflineMessages(int from_uid, int to_uid, long long before_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out){
-    return _dao.GetOfflineMessages(from_uid, to_uid, before_id, limit, out);
+bool MysqlMgr::GetOfflineMessages(int from_uid, int to_uid, long long after_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out){
+    return _dao.GetOfflineMessages(from_uid, to_uid, after_id, limit, out);
 }
 
 bool MysqlMgr::MarkMessagesDelivered(const std::vector<std::string>& unique_ids){

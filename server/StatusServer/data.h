@@ -1,6 +1,8 @@
 #pragma once
 #include <string>
 #include <vector>
+#include "const.h"
+
 struct UserInfo {
 	UserInfo():name(""), pwd(""),uid(0),email(""),nick(""),desc(""),sex(0), icon(""), back("") {}
 	std::string name;
@@ -46,4 +48,25 @@ struct FriendInfo{
 	int sex_;
 
 	int id_; 	//用于动态获取friendlist，同上面的ApplyInfo
+};
+
+struct ChatMsgRecord{
+	ChatMsgRecord(long long id, std::string unique_id, int from_uid, int to_uid, long long thread_id, ChatMsgType msg_type, 
+		std::string content, std::string chat_time, int delivered)
+			:_id(id), _unique_id(unique_id), _from_uid(from_uid), _to_uid(to_uid), _thread_id(thread_id), _msg_type(msg_type),
+			_content(content), _chat_time(chat_time), _delivered(delivered){
+
+	}
+	
+	long long _id;			// id_ 由数据库 AUTO_INCREMENT 分配：
+								//   · 写入路径（SaveChatMessages）：保持 0，INSERT 语句里不出现 id 列
+								//   · 读取路径（GetOfflineMessages）：从结果集填充，同时作为离线拉取的分页游标
+	std::string _unique_id;
+	int _from_uid;
+	int _to_uid;
+	long long _thread_id;
+	ChatMsgType _msg_type;
+	std::string _content;
+	std::string _chat_time;
+	int _delivered;		// 0=待投递 1=已投递给接收方
 };

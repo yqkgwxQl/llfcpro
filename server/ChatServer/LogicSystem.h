@@ -43,6 +43,7 @@ private:
     void AuthFriendApply(std::shared_ptr<CSession> session, const std::string& msg_data);
     void DealChatTextMsg(std::shared_ptr<CSession> session, const std::string& msg_data);
     void GetOfflineMsg(std::shared_ptr<CSession> session, const std::string& msg_data);
+    void ConfirmOfflineMsg(std::shared_ptr<CSession> session, const std::string& msg_data);
     
     bool _b_stop;
     std::thread _work_thread;

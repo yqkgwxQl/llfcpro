@@ -101,6 +101,31 @@ END ;;
 DELIMITER ;
 
 -- ------------------------------------------------------------
+-- 聊天消息：服务端的唯一真源；客户端 SQLite 只是可重建的缓存
+--   · uk_unique_id 是幂等的基石：SaveChatMessages 用 INSERT IGNORE，
+--     没有这个唯一索引，重发/重复拉取就会真的插成多行
+--   · delivered: 0 = 待投递（收件人还没拉到）, 1 = 已投递
+--   · 排序与分页一律用 id（自增），chat_time 只用于展示
+--   · thread_id 恒为 0，占位：将来做群聊/会话实体化时不用改表
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `message` (
+  `id`         bigint      NOT NULL AUTO_INCREMENT,
+  `unique_id`  varchar(64) NOT NULL,
+  `from_uid`   int         NOT NULL,
+  `to_uid`     int         NOT NULL,
+  `thread_id`  bigint      NOT NULL DEFAULT '0',
+  `msg_type`   tinyint     NOT NULL DEFAULT '0',   -- 0=TEXT 1=PIC 2=FILE
+  `content`    text        NOT NULL,
+  `chat_time`  varchar(32) NOT NULL DEFAULT '',    -- 原样存客户端字符串，避免时区转换
+  `delivered`  tinyint     NOT NULL DEFAULT '0',
+  `created_at` datetime    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_unique_id` (`unique_id`),
+  KEY `idx_inbox` (`to_uid`,`delivered`,`id`),
+  KEY `idx_pair`  (`from_uid`,`to_uid`,`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ------------------------------------------------------------
 -- 发号器初始值：属于结构的一部分，不是业务数据
 -- 若库里已有用户，改成本机当前的 uid 最大值即可
 -- ------------------------------------------------------------

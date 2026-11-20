@@ -30,7 +30,7 @@ public:
     bool AddFriend(const int& from_uid, const int& to_uid, const std::string& back_name);
 
     bool SaveChatMessages(std::shared_ptr<ChatMsgRecord> chat_msg_record);
-    bool GetOfflineMessages(int from_uid, int to_uid, long long before_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out);
+    bool GetOfflineMessages(int from_uid, int to_uid, long long after_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out);
     bool MarkMessagesDelivered(const std::vector<std::string>& unique_ids);
 private:
     MysqlMgr();

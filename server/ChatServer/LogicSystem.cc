@@ -92,6 +92,10 @@ void LogicSystem::RejesterCallBack(){
     _callBacks[ID_GET_FRIEND_LIST_REQ] = std::bind(GetFriendListHandler,this,std::placeholders::_1,std::placeholders::_2);
     _callBacks[ID_TEXT_CHAT_MSG_REQ] = std::bind(DealChatTextMsg,this,std::placeholders::_1,std::placeholders::_2);
     _callBacks[ID_GET_OFFLINE_MESSAGE_REQ] = std::bind(GetOfflineMsg,this,std::placeholders::_1,std::placeholders::_2);
+    // BL-22 未接线：客户端 ACK（1046 确认 / 1047 回包）方案暂缓，ConfirmOfflineMsg 还是空函数。
+    // 在它实现之前【不要注册】，否则客户端一旦发 1046 就会永远等不到 1047。
+    // 详见 docs/改造记录.md 的 BL-22。
+    // _callBacks[ID_CONFIRM_OFFLINE_MSG_REQ] = std::bind(ConfirmOfflineMsg,this,std::placeholders::_1,std::placeholders::_2);
 }
 
 void LogicSystem::LoginHandler(std::shared_ptr<CSession> session,const std::string& msg_data){
@@ -630,21 +634,24 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
     reader.parse(msg_data, root);
     const int other_uid = root["other_uid"].asInt();
     const int self_uid = static_cast<int>(session->GetUserId());
-    const long long begin = root.get("begin", 0).asInt64();
+    const long long after_id = root.get("after_id", 0).asInt64();
     int limit = root.get("limit", 10).asInt();
     if(limit <= 0 || limit > 10)
         limit = 10;
         
     Json::Value return_value;
     return_value["error"] = ErrorCodes::Success;
-    Defer defer([&return_value, &session](){
+    return_value["from_uid"] = other_uid;
+    std::vector<std::string> unique_ids_vector;
+    Defer defer([&return_value, &session, &unique_ids_vector](){
         std::string return_string = return_value.toStyledString();
         session->Send(ID_GET_OFFLINE_MESSAGE_RSP, return_string);
+        if(!unique_ids_vector.empty())
+            MysqlMgr::GetInstance()->MarkMessagesDelivered(unique_ids_vector);
     });
     if(other_uid <= 0){
         LOGE << "GetOfflineMsg 参数非法: other_uid=" << other_uid;
         return_value["error"] = ErrorCodes::Error_Json;
-        session->Send(ID_TEXT_CHAT_MSG_RSP, return_value.toStyledString());
         return;
     }
 
@@ -660,17 +667,16 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
         return;
     }
 
-    LOGI << "self_uid(" << self_uid << ")拉取自己离线时other_uid(" << other_uid << ")给它发送的msg, begin: " << begin << " limit: " << limit;
+    LOGI << "self_uid(" << self_uid << ")拉取自己离线时other_uid(" << other_uid << ")给它发送的msg, after_id: " << after_id << " limit: " << limit;
 
     std::vector<std::shared_ptr<ChatMsgRecord>> chat_msg_records_vector;  //？？这里推荐使用new还是在栈上呀？
-    std::vector<std::string> unique_ids_vector;
-    bool is_get_offline_message = MysqlMgr::GetInstance()->GetOfflineMessages(other_uid, self_uid, begin, limit, chat_msg_records_vector);
+    bool is_get_offline_message = MysqlMgr::GetInstance()->GetOfflineMessages(other_uid, self_uid, after_id, limit, chat_msg_records_vector);
     if(!is_get_offline_message){
         return_value["error"] = ErrorCodes::MysqlMgr_GetOfflineMessages_error;
         return;
     }
-    for(const auto chat_msg_record_ptr : chat_msg_records_vector){  //？？？这里如何理解呢？用不用&？
-        return_value["min_id"] = chat_msg_record_ptr->_id;
+    //引用不是一个对象，它只是原对象的一个别名。 如果加&：引用计数还是原来的；不加，反而+1
+    for(const auto& chat_msg_record_ptr : chat_msg_records_vector){  
         Json::Value chat_msg_obj;
         // chat_msg_obj["id"] = chat_msg_record_ptr->_id;
         chat_msg_obj["unique_id"] = chat_msg_record_ptr->_unique_id;
@@ -680,11 +686,15 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
         chat_msg_obj["chat_time"] = chat_msg_record_ptr->_chat_time;
         return_value["chat_msg_list"].append(chat_msg_obj);
     }
-    return_value["from_uid"] = other_uid;
+    return_value["max_id"] = chat_msg_records_vector.empty() ? 0 : chat_msg_records_vector.back()->_id;
     return_value["has_more"] = (static_cast<int>(chat_msg_records_vector.size()) == limit);
 
-    MysqlMgr::GetInstance()->MarkMessagesDelivered(unique_ids_vector);
 }
+
+void LogicSystem::ConfirmOfflineMsg(std::shared_ptr<CSession> session, const std::string& msg_data){
+    
+}
+
 
 //感觉这里也可以写成bool LogicSystem::GetBaseInfo(std::string& base_key,std::shared_ptr<UserInfo> &userinfo)？？？？？？？？？？？？？？？
 bool LogicSystem::GetBaseInfo(std::string base_key, int uid, std::shared_ptr<UserInfo> &userinfo){

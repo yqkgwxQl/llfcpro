@@ -911,7 +911,8 @@ bool MysqlDao::SaveChatMessages(std::shared_ptr<ChatMsgRecord> chat_msg_record){
     }
 }
 
-bool MysqlDao::GetOfflineMessages(int from_uid, int to_uid, long long before_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out){
+// 这里和applylist和friendlist正好相反，不能最新消息显示在最上方，应该最新消息显示在最下方
+bool MysqlDao::GetOfflineMessages(int from_uid, int to_uid, long long after_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out){
     auto con = _mysqlPool->GetSqlConnection();
     if (con == nullptr) {                        
         LOGE << "获取MysqlPool里的sql连接失败";
@@ -927,16 +928,16 @@ bool MysqlDao::GetOfflineMessages(int from_uid, int to_uid, long long before_id,
         "where message.from_uid = ? "
         "and message.to_uid = ? "
         "and message.delivered = 0 ";
-        if(before_id > 0)
-            sql += "and message.id < ? ";
-        sql += "order by message.id DESC "
+        if(after_id > 0)
+            sql += "and message.id > ? ";
+        sql += "order by message.id ASC "
         "LIMIT ?";
         
-        std::unique_ptr<sql::PreparedStatement> pstmt(guard->_con->prepareStatement(sql));    //DESC ————> 拿最新的申请
+        std::unique_ptr<sql::PreparedStatement> pstmt(guard->_con->prepareStatement(sql)); 
         pstmt->setInt(1, from_uid);
         pstmt->setInt(2, to_uid);
-        if(before_id > 0){
-            pstmt->setInt64(3, before_id);
+        if(after_id > 0){
+            pstmt->setInt64(3, after_id);
             pstmt->setInt(4, limit);
         }else{
             pstmt->setInt(3, limit);
