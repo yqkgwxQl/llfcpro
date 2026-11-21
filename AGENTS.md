@@ -1,4 +1,4 @@
-# 项目规则（AGENTS.md）
+﻿# 项目规则（AGENTS.md）
 
 > 给 AI 助手看的项目说明与工作规则，人也可以读。
 > 最后核对：2026-11-17
@@ -20,6 +20,8 @@ C++ 全栈分布式即时通讯学习项目：Qt 客户端 + 5 个后端服务�
 | `server/ChatServer/` | 聊天服务：**单 exe**，多节点由 `nodes/<节点>/config.ini` 区分 |
 | `server/VarifyServer/` | 验证码 / 邮件服务（Node.js） |
 | `server/sql/` | 数据库结构脚本（仅结构，无数据） |
+| `server/proto/` | **协议唯一真源**：`message.proto` + `generated/`（protoc 3.13.0 生成，入库）；三个 C++ 服务编译同一份，VarifyServer 运行时加载 |
+| `server/common/` | **三个后端服务共用的基础库**（Logger / ConfigMgr / AsioIOServicePool / Redis 组 / MySQL 组 / data.h / const.h），以 STATIC 库 `llfc_common` 供各服务链接 |
 | `docs/测试指南.md` | 自动化检查 / 场景测试 / 手工清单（离线/在线、基础设施启停） |
 | `docs/改造记录.md` | ChatServer 合并与健壮性改造的记录（改了什么 / 为什么 / 剩余 backlog） |
 | `tools/test/` | 测试脚本：`health-check.ps1`（只读检查）、`infra-ctl.ps1`（启停 MySQL/Redis）、`test-run.ps1`（场景运行）、`service-run.ps1`（起服务+客户端）、`stack-ctl.ps1`（后台栈启停）、`api-test.ps1`（写库测试，带备份/清理）、`doc-sync.ps1`（文档同步检查）、`msg-proto.ps1`（消息链路协议测试：发送/拉取/ACK/分页/幂等/越权，断言以 `message` 表为准） |
@@ -122,14 +124,14 @@ cd server\ChatServer\build
 - C++ 沿用现有命名：服务端 `.cc/.h`，客户端 `.cpp/.h`
 - 提交信息用中文，写清「改了什么 + 为什么」
 - 新增依赖前先确认能否复用现有 boost / gRPC / Qt，不要引入第二套
-- 数据层与公共常量（`RedisConPool` / `RedisMgr` / `MysqlPool` / `MysqlDao` / `MysqlMgr` / `data.h` / `const.h`）**以 `server/ChatServer/` 为规范源**：改动先改 ChatServer，再同步 `GateServer` / `StatusServer` 的同名拷贝，改完跑一遍 `doc-sync.ps1` 看 D7
+- 数据层与公共常量（`RedisConPool` / `RedisMgr` / `MysqlPool` / `MysqlDao` / `MysqlMgr` / `data.h` / `const.h`）**只在 `server/common/` 存在一份**（2026-11-22 抽出，STATIC 库 `llfc_common`）：改这里即可，**不要**在三个服务目录里再放副本；跑 `doc-sync.ps1` 的 D7（common 齐全 / 服务目录无副本 / 三服务都链接 `llfc_common`）
 
 ## 七、已知问题
 
 | 问题 | 说明 |
 |---|---|
-| 数据层有 3 份拷贝 | `MysqlPool` / `MysqlDao` / `MysqlMgr` / `RedisConPool` / `RedisMgr` / `data.h` / `const.h` 在 `ChatServer` / `GateServer` / `StatusServer` 各一份，**规范源是 `server/ChatServer/`**（2026-11-16 完成移植）：改完必须同步另外两个服务，否则 `doc-sync.ps1` 的 D7 会 WARN。抽公共库的计划见 `docs/改造记录.md` 的 BL-07 |
-| `message.proto` 仍有 4 份拷贝 | `ChatServer` / `GateServer` / `StatusServer` / `VarifyServer` 各一份，改协议要改四处，易漏 |
+| ~~数据层有 3 份拷贝~~ **已解决** | 2026-11-22 抽出 `server/common/`（STATIC 库 `llfc_common`）：`Logger` / `ConfigMgr` / `AsioIOServicePool` / `RedisConPool` / `RedisMgr` / `MysqlPool` / `MysqlDao` / `MysqlMgr` / `data.h` / `const.h` 各只剩一份；`doc-sync.ps1` 的 D7 改为「common 齐全 / 服务目录禁止副本 / 三服务都链接 `llfc_common`」。详见 `docs/改造记录.md` §12 |
+| ~~`message.proto` 4 份拷贝~~ **已解决** | 2026-11-22 收敛为 `server/proto/message.proto` + `server/proto/generated/`（唯一生成物，入库）；四个服务目录不再有副本，`doc-sync.ps1` 的 D8 会检查。改完协议执行 `cmake --build server\ChatServer\build --target regen_proto` |
 | `ChatServer` 运行期探活有延迟 | 连接空闲 ≥600 秒才检查，MySQL 重启后最长约 10 分钟才恢复（BL-10 计划调到 60 秒） |
 | README 缺「源码差异」章节 | README 第 2 节目前只列工程层面差异（构建 / 工具链 / 日志 / 配置 / 目录），源码层面的 diff 仍未写，README 里自己标注了「以后会更新」 |
 | `CMakeLists.txt` 含硬编码绝对路径 | gRPC / protobuf 路径写死为 `E:/zhongzhuan2/grpc/...`，换机器需要改 |

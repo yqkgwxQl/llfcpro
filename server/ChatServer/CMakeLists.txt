@@ -153,56 +153,30 @@ else()
     message(WARNING "未找到 config.ini，已跳过复制；请复制 config.ini.example 为 config.ini 后重新 configure。")
 endif()
 
-# 3.5 重新生成 protobuf / gRPC 代码（手动目标，默认不参与构建）-------
-# 【重要】message.pb.h 必须由“与运行时头文件版本一致”的 protoc 生成：
-#   本工程用的是 grpc 自带的 protobuf 3.13.0（见上面的 PROTOBUF_INCLUDEDIR）
-#   千万不要用 E:/zhongzhuan2/protoc/bin/protoc.exe —— 那是 35.0，
-#   它生成的 message.pb.h 无法用 3.13 的头文件编译（会触发 #error）。
-# 用法：改完 message.proto 后执行  cmake --build build --target regen_proto
-set(PROTOC_EXE        "E:/zhongzhuan2/grpc/build_mingw/third_party/protobuf/protoc.exe")
-set(GRPC_CPP_PLUGIN   "E:/zhongzhuan2/grpc/build_mingw/grpc_cpp_plugin.exe")
-
-# 注意：--cpp_out / --grpc_out 必须用相对路径（"."），
-#       否则 Windows 盘符里的冒号会被 protoc 当成生成器选项分隔符，报
-#       Unknown generator option: "E"
-add_custom_target(regen_proto
-    COMMAND "${PROTOC_EXE}"
-            -I .
-            --cpp_out=.
-            --grpc_out=.
-            --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
-            message.proto
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    COMMENT "Regenerating message.pb.* / message.grpc.pb.* with protoc 3.13.0"
-    VERBATIM
-)
 
 # 4. 构建目标-----------------------------------
+# 公共库（Logger / ConfigMgr / AsioIOServicePool 等），源码在 server/common
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../common ${CMAKE_BINARY_DIR}/common)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../proto ${CMAKE_BINARY_DIR}/proto)
+
 add_executable(${PROJECT_NAME}
     ChatServer.cc
     CServer.cc
     CSession.cc
     LogicSystem.cc
-    ConfigMgr.cc
-    AsioIOServicePool.cc
-    RedisMgr.cc
-    RedisConPool.cc
-    MysqlPool.cc
-    MysqlDao.cc
-    MysqlMgr.cc
     MsgNode.cc
     UserMgr.cc
     ChatServiceImpl.cc
     ChatGrpcClient.cc         
     StatusGrpcClient.cc     
-    message.pb.cc
-    message.grpc.pb.cc
-    Logger.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../proto/generated/message.pb.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../proto/generated/message.grpc.pb.cc
     CliOptions.cc
 )
 
 # 5. 头文件包含路径-------------------------------
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../proto/generated
     $<$<BOOL:${Boost_FOUND}>:${Boost_INCLUDE_DIRS}>
     $<$<NOT:$<BOOL:${Boost_FOUND}>>:${BOOST_INCLUDEDIR}>
     ${JSONCPP_INCLUDEDIR}
@@ -215,6 +189,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 # 6. 链接库-------------------------------------
 target_link_libraries(${PROJECT_NAME} PRIVATE
+    llfc_common
     $<$<BOOL:${Boost_FOUND}>:${Boost_LIBRARIES}>
     $<$<NOT:$<BOOL:${Boost_FOUND}>>:${BOOST_THREAD_LIB}>
     ${BOOST_FILESYSTEM_LIB}

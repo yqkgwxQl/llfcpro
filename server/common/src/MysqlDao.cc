@@ -923,15 +923,14 @@ bool MysqlDao::GetOfflineMessages(int from_uid, int to_uid, long long after_id, 
 
     try{    //SQL 的执行顺序是：先 FROM -> JOIN -> WHERE 过滤 → 再 ORDER BY 排序 → 最后 LIMIT 取前 N 条。
         std::string sql;
-        sql = "select message.id, message.unique_id, message.from_uid, message.thread_id, message.msg_type, message.content, message.chat_time ,message.delivered "
-        "from message  "
-        "where message.from_uid = ? "
-        "and message.to_uid = ? "
-        "and message.delivered = 0 ";
+        sql = "SELECT message.id, message.unique_id, message.from_uid, message.thread_id, message.msg_type, message.content, message.chat_time ,message.delivered"
+        " FROM message"
+        " WHERE message.from_uid = ? AND to_uid = ?"
+        " AND message.delivered = 0";
         if(after_id > 0)
-            sql += "and message.id > ? ";
-        sql += "order by message.id ASC "
-        "LIMIT ?";
+            sql += " AND message.id > ?";
+        sql += " ORDER BY message.id ASC"
+        " LIMIT ?";
         
         std::unique_ptr<sql::PreparedStatement> pstmt(guard->_con->prepareStatement(sql)); 
         pstmt->setInt(1, from_uid);

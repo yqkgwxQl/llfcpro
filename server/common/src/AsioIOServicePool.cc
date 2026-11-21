@@ -30,18 +30,26 @@ boost::asio::io_context& AsioIOServicePool::GetIOService(){
 }
 
 void AsioIOServicePool::Stop(){
+    // 幂等：ChatServer / StatusServer 在 main 里已经显式调过一次，
+    // 析构函数里那次必须是空操作，否则 join 一个已经 join 过的 thread 会抛 system_error。
+    if(_stopped.exchange(true)){
+        return;
+    }
+
     //因为仅仅执行work.reset并不能让iocontext从run的状态中退出
     //当iocontext已经绑定了读或写的监听事件后，还需要手动stop该服务。
     for (auto& work_guards : _work_guards) {
         work_guards.reset();
     }
 
-    // ★ 关键修复：停止所有 io_context，让 run() 返回
+    // 停止所有 io_context，让 run() 返回
     for (auto& ioc : _ioServices) {
         ioc.stop();
     }
-    
+
     for (auto& t : _threads) {
-        t.join();
+        if(t.joinable()){
+            t.join();
+        }
     }
 }

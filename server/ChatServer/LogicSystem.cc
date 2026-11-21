@@ -519,13 +519,18 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
     const Json::Value& text_array = root["text_array"];
 
     Json::Value return_value;
+    Defer defer([&return_value, session](){
+        std::string return_string = return_value.toStyledString();
+        session->Send(ID_TEXT_CHAT_MSG_RSP, return_string);
+    });
     return_value["error"] = ErrorCodes::Success;
+    return_value["from_uid"] = from_uid;
+    return_value["to_uid"] = to_uid;
     if(from_uid <= 0 || to_uid <= 0 || from_uid == to_uid
        || !text_array.isArray() || text_array.size() == 0){
         LOGE << "DealChatTextMsg 参数非法: from_uid=" << from_uid
              << " to_uid=" << to_uid << " text_size=" << text_array.size();
         return_value["error"] = ErrorCodes::Error_Json;
-        session->Send(ID_TEXT_CHAT_MSG_RSP, return_value.toStyledString());
         return;
     }
 
@@ -560,9 +565,7 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
         }
     }
 
-    
-    return_value["from_uid"] = from_uid;
-    return_value["to_uid"] = to_uid;
+
     for(const auto& text_obj : text_array){
         if(text_obj.isObject()){
             Json::Value unique_id_obj;
@@ -570,10 +573,6 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
             return_value["unique_ids"].append(unique_id_obj);
         }
     }
-    Defer defer([&return_value, session](){
-        std::string return_string = return_value.toStyledString();
-        session->Send(ID_TEXT_CHAT_MSG_RSP, return_string);
-    });
     
     std::string ipKey = USERIPPREFIX + std::to_string(to_uid);
     std::string peer_server_name = "";

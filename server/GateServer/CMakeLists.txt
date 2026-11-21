@@ -146,6 +146,10 @@ else()
 endif()
 
 # 4. 构建目标-----------------------------------
+# 公共库（Logger / ConfigMgr / AsioIOServicePool 等），源码在 server/common
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../common ${CMAKE_BINARY_DIR}/common)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../proto ${CMAKE_BINARY_DIR}/proto)
+
 add_executable(${PROJECT_NAME}
     GateServer.cc
     CServer.cc
@@ -153,23 +157,16 @@ add_executable(${PROJECT_NAME}
     LogicSystem.cc
     VarifyGrpcClient.cc
     StatusGrpcClient.cc 
-    ConfigMgr.cc
-    AsioIOServicePool.cc
-    RedisMgr.cc
-    RedisConPool.cc
     # MysqlPool_2.cc
     # MysqlDao_2.cc
     # MysqlMgr_2.cc
-    MysqlPool.cc
-    MysqlDao.cc
-    MysqlMgr.cc
-    message.pb.cc
-    message.grpc.pb.cc
-    Logger.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../proto/generated/message.pb.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../proto/generated/message.grpc.pb.cc
 )
 
 # 5. 头文件包含路径-------------------------------
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../proto/generated
     $<$<BOOL:${Boost_FOUND}>:${Boost_INCLUDE_DIRS}>
     $<$<NOT:$<BOOL:${Boost_FOUND}>>:${BOOST_INCLUDEDIR}>
     ${JSONCPP_INCLUDEDIR}
@@ -181,6 +178,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 # 6. 链接库-------------------------------------
 target_link_libraries(${PROJECT_NAME} PRIVATE
+    llfc_common
     $<$<BOOL:${Boost_FOUND}>:${Boost_LIBRARIES}>
     $<$<NOT:$<BOOL:${Boost_FOUND}>>:${BOOST_THREAD_LIB}>
     ${JSONCPP_LIBRARY}

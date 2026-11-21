@@ -63,10 +63,14 @@ bool RedisMgr::Get(const std::string &key, std::string& value)
         return false;
     }
 
-     if (reply->type != REDIS_REPLY_STRING) {   //这里只是应用层有问题，不用归还完好的redis连接
-         LOGE << "[ GET  " << key << " ] failed" << std::endl;
-         freeReplyObject(reply);
-         return false;
+    if (reply->type == REDIS_REPLY_NIL) {          // key 不存在：业务正常
+        freeReplyObject(reply);
+        return false;                              // 不记 Error（可留 LOGD/不记）
+    }
+    if (reply->type != REDIS_REPLY_STRING) {       // 真的异常
+        LOGE << "[ GET " << key << " ] unexpected type=" << reply->type;
+        freeReplyObject(reply);
+        return false;
     }
 
      value = reply->str;

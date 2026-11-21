@@ -11,8 +11,10 @@
       D4 脚本引用：文档里提到的 tools/test/*.ps1 都存在，且每个脚本都被文档提到
       D5 端口一致：节点配置里的 TCP/gRPC 端口在 README / 测试指南里都有出现
       D6 文档清单：docs/文档同步清单.md 存在
-      D7 拷贝一致：数据层 + const.h 共 12 个文件，在 GateServer / StatusServer 里
-                    必须与 server/ChatServer（规范源）内容一致（换行差异忽略）
+      D7 公共库唯一来源：数据层 + const.h 共 12 个文件只应存在于 server/common；
+                    三个服务目录里不允许再出现同名副本，且必须链接 llfc_common
+      D8 proto 单一来源：message.proto 只在 server/proto/ 一份，生成物只在 generated/ 一套；
+                    四个服务目录里不允许出现 message.proto / message.pb.* 副本
 
     只读检查，不修改任何文件。
 
@@ -152,66 +154,93 @@ if (Test-Path -LiteralPath $checklist) {
     Add-Result "D6 文档同步清单" "FAIL" "缺少 docs/文档同步清单.md"
 }
 
-# ---------- D7 拷贝一致（规范源 = server/ChatServer） -----------------------
+# ---------- D7 公共库唯一来源（server/common） -------------------------------
+# 2026-11-22 起，数据层与公共常量统一放在 server/common：
+#   · 头文件 → server/common/include
+#   · 实现   → server/common/src
+# 三个服务目录里不允许再出现同名副本；且每个服务都必须链接 llfc_common。
 
-# 这 12 个文件在三个服务里各存一份，规范源是 server/ChatServer。
-# 比较前先把 CRLF 统一成 LF 再算 SHA256：仓库开着 core.autocrlf，
-# 一次 checkout 就可能把换行改掉，按原始字节比会天天误报。
-function Get-NormalizedHash {
-    param([string]$Path)
-    $text = [System.IO.File]::ReadAllText($Path)
-    $text = $text -replace "`r`n", "`n"
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        return (($sha.ComputeHash($bytes) | ForEach-Object { $_.ToString('x2') }) -join '')
-    } finally {
-        $sha.Dispose()
-    }
+$commonLayout = [ordered]@{
+    "MysqlDao.cc"     = "src"
+    "MysqlDao.h"      = "include"
+    "MysqlMgr.cc"     = "src"
+    "MysqlMgr.h"      = "include"
+    "MysqlPool.cc"    = "src"
+    "MysqlPool.h"     = "include"
+    "RedisConPool.cc" = "src"
+    "RedisConPool.h"  = "include"
+    "RedisMgr.cc"     = "src"
+    "RedisMgr.h"      = "include"
+    "data.h"          = "include"
+    "const.h"         = "include"
+}
+$commonDir = Join-Path (Join-Path $Root "server") "common"
+
+$missing = @()
+foreach ($name in $commonLayout.Keys) {
+    $fp = Join-Path (Join-Path $commonDir $commonLayout[$name]) $name
+    if (-not (Test-Path -LiteralPath $fp)) { $missing += $name }
+}
+if ($missing.Count -gt 0) {
+    Add-Result "D7 公共库 server/common" "FAIL" ("缺少: " + ($missing -join ", "))
+} else {
+    Add-Result "D7 公共库 server/common" "PASS" ("{0} 个公共文件都在（include/ 与 src/）" -f $commonLayout.Count)
 }
 
-$sharedFiles = @(
-    "MysqlDao.cc", "MysqlDao.h",
-    "MysqlMgr.cc", "MysqlMgr.h",
-    "MysqlPool.cc", "MysqlPool.h",
-    "RedisConPool.cc", "RedisConPool.h",
-    "RedisMgr.cc", "RedisMgr.h",
-    "data.h",
-    "const.h"
-)
-$canonicalDir = Join-Path (Join-Path $Root "server") "ChatServer"
-$canonicalHash = @{}
-foreach ($name in $sharedFiles) {
-    $src = Join-Path $canonicalDir $name
-    if (Test-Path -LiteralPath $src) {
-        $canonicalHash[$name] = Get-NormalizedHash -Path $src
-    } else {
-        $canonicalHash[$name] = $null
-        Add-Result ("D7 规范源 " + $name) "FAIL" "server/ChatServer 下找不到该文件"
-    }
-}
-
-foreach ($svc in @("GateServer", "StatusServer")) {
+foreach ($svc in @("ChatServer", "GateServer", "StatusServer")) {
     $svcDir = Join-Path (Join-Path $Root "server") $svc
-    $missing = @()
-    $drift = @()
-    foreach ($name in $sharedFiles) {
-        if ($null -eq $canonicalHash[$name]) { continue }
-        $dst = Join-Path $svcDir $name
-        if (-not (Test-Path -LiteralPath $dst)) {
-            $missing += $name
-            continue
-        }
-        if ((Get-NormalizedHash -Path $dst) -ne $canonicalHash[$name]) {
-            $drift += $name
-        }
+
+    $copies = @()
+    foreach ($name in $commonLayout.Keys) {
+        if (Test-Path -LiteralPath (Join-Path $svcDir $name)) { $copies += $name }
     }
-    if ($missing.Count -gt 0) {
-        Add-Result ("D7 " + $svc + " 拷贝") "FAIL" ("缺少: " + ($missing -join ", "))
-    } elseif ($drift.Count -gt 0) {
-        Add-Result ("D7 " + $svc + " 拷贝") "WARN" ("与规范源不一致（先改 server/ChatServer 再同步拷贝）: " + ($drift -join ", "))
+    if ($copies.Count -gt 0) {
+        Add-Result ("D7 " + $svc + " 禁止副本") "FAIL" ("已迁到 server/common，服务目录里不应再有: " + ($copies -join ", "))
     } else {
-        Add-Result ("D7 " + $svc + " 拷贝") "PASS" ("{0} 个文件与 server/ChatServer 一致（忽略换行差异）" -f $sharedFiles.Count)
+        Add-Result ("D7 " + $svc + " 禁止副本") "PASS" "服务目录下无数据层副本"
+    }
+
+    $cm = Join-Path $svcDir "CMakeLists.txt"
+    if ((Test-Path -LiteralPath $cm) -and ((Get-Content -LiteralPath $cm -Raw) -match 'llfc_common')) {
+        Add-Result ("D7 " + $svc + " 链接公共库") "PASS" "链接了 llfc_common"
+    } else {
+        Add-Result ("D7 " + $svc + " 链接公共库") "FAIL" "CMakeLists.txt 里没有 llfc_common"
+    }
+}
+
+# ---------- D8 proto 单一来源（server/proto） --------------------------------
+# 2026-11-22 起：协议定义只有 server/proto/message.proto 一份；
+# 生成物只有 server/proto/generated/ 一套（入库，构建不需要装 protoc）；
+# 四个服务目录里不允许再有 message.proto / message.pb.* 副本。
+
+$protoRoot = Join-Path (Join-Path $Root "server") "proto"
+$protoFile = Join-Path $protoRoot "message.proto"
+$genDir    = Join-Path $protoRoot "generated"
+$genFiles  = @("message.pb.cc", "message.pb.h", "message.grpc.pb.cc", "message.grpc.pb.h")
+
+if (Test-Path -LiteralPath $protoFile) {
+    Add-Result "D8 proto 真源" "PASS" "server/proto/message.proto"
+} else {
+    Add-Result "D8 proto 真源" "FAIL" "缺少 server/proto/message.proto"
+}
+
+$genMissing = @()
+foreach ($gf in $genFiles) { if (-not (Test-Path -LiteralPath (Join-Path $genDir $gf))) { $genMissing += $gf } }
+if ($genMissing.Count -gt 0) {
+    Add-Result "D8 生成物" "FAIL" ("缺少: " + ($genMissing -join ", ") + "（跑 regen_proto）")
+} else {
+    Add-Result "D8 生成物" "PASS" "server/proto/generated/ 下 4 个文件齐全"
+}
+
+foreach ($svc in @("ChatServer", "GateServer", "StatusServer", "VarifyServer")) {
+    $svcDir = Join-Path (Join-Path $Root "server") $svc
+    $copies = @()
+    if (Test-Path -LiteralPath (Join-Path $svcDir "message.proto")) { $copies += "message.proto" }
+    foreach ($gf in $genFiles) { if (Test-Path -LiteralPath (Join-Path $svcDir $gf)) { $copies += $gf } }
+    if ($copies.Count -gt 0) {
+        Add-Result ("D8 " + $svc + " 禁止副本") "FAIL" ("已迁到 server/proto，服务目录里不应再有: " + ($copies -join ", "))
+    } else {
+        Add-Result ("D8 " + $svc + " 禁止副本") "PASS" "服务目录下无 proto/pb 副本"
     }
 }
 
