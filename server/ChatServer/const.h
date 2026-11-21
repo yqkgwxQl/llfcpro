@@ -64,6 +64,8 @@ enum MSG_IDS {
 	ID_TEXT_CHAT_MSG_REQ  = 1017,  //文本聊天信息请求
     ID_TEXT_CHAT_MSG_RSP  = 1018,  //文本聊天信息回复
     ID_NOTIFY_TEXT_CHAT_MSG_REQ = 1019, //通知用户文本聊天信息
+	ID_CONFIRM_TEXT_CHAT_MSG_REQ = 1020,	
+	ID_CONFIRM_TEXT_CHAT_MSG_RSP = 1021,	
 	//------mine---------	
 	//我为什么在用户登录时要直反给他10条apply,既然一条消息包含不了那么多apply，为什么我们不多发几条呢? ————> 见addition.txt
 	ID_GET_APPLY_LIST_REQ = 1040,	//用户刚登陆时只返回给他10条 别人想要添加他为好友的申请（因为一条信息是有限大小的，先第一条回复里
@@ -74,6 +76,7 @@ enum MSG_IDS {
 	ID_GET_OFFLINE_MESSAGE_REQ = 1044,	//client从database拉取离线消息
 	ID_GET_OFFLINE_MESSAGE_RSP = 1045,
 	ID_CONFIRM_OFFLINE_MSG_REQ = 1046,	//离线消息已收妥
+	ID_CONFIRM_OFFLINE_MSG_RSP = 1047,	
 };
 
 #define MAX_LENGTH  1024*2

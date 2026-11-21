@@ -970,7 +970,7 @@ bool MysqlDao::GetOfflineMessages(int from_uid, int to_uid, long long after_id, 
     }
 }
 
-bool MysqlDao::MarkMessagesDelivered(const std::vector<std::string>& unique_ids){
+bool MysqlDao::MarkMessagesDelivered(const int from_uid, const int to_uid, const std::vector<std::string>& unique_ids){
     auto con = _mysqlPool->GetSqlConnection();
     if (con == nullptr) {                        
         LOGE << "获取MysqlPool里的sql连接失败";
@@ -982,16 +982,28 @@ bool MysqlDao::MarkMessagesDelivered(const std::vector<std::string>& unique_ids)
     try{    //SQL 的执行顺序是：先 FROM -> JOIN -> WHERE 过滤 → 再 ORDER BY 排序 → 最后 LIMIT 取前 N 条。
         std::string sql;
         sql = "UPDATE  message SET delivered = 1"
-        " WHERE unique_id = ?";
+        " WHERE unique_id = ?"
+        " AND from_uid = ?"
+        " AND to_uid = ?"
+        " AND delivered = 0";
         
         std::unique_ptr<sql::PreparedStatement> pstmt(guard->_con->prepareStatement(sql));    
+        pstmt->setInt(2, from_uid);
+        pstmt->setInt(3, to_uid);
+        int missed = 0;
         for(const auto& unique_id : unique_ids){
             pstmt->setString(1, unique_id);
 
             int rowAffect = pstmt->executeUpdate();
-            if(rowAffect == 0)
-                LOGE << "影响 0 行，说明该记录已经存在";
+            if(rowAffect == 0){
+                LOGI << "确认未命中（已投递或不存在）: unique_id=" << unique_id << " from_uid=" << from_uid <<" to_uid=" << to_uid;
+                missed++;
+            }
         }
+        if(missed > 0)
+            LOGI << "MarkMessagesDelivered: to_uid=" << to_uid
+                 << " 共 " << unique_ids.size() << " 条，其中 " << missed
+                 << " 条未命中（已投递或不存在）";
         return true;
     }catch(const sql::SQLException& e){
         if (IsConnectionLost(e.getErrorCode())) guard.markBroken();

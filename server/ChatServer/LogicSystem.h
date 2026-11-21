@@ -41,10 +41,11 @@ private:
     void GetFriendListHandler(std::shared_ptr<CSession> session, const std::string& msg_data);
     void AddFriendApply(std::shared_ptr<CSession> session, const std::string& msg_data);
     void AuthFriendApply(std::shared_ptr<CSession> session, const std::string& msg_data);
+    void ConfirmChatTextMsg(std::shared_ptr<CSession> session, const std::string& msg_data);
     void DealChatTextMsg(std::shared_ptr<CSession> session, const std::string& msg_data);
     void GetOfflineMsg(std::shared_ptr<CSession> session, const std::string& msg_data);
     void ConfirmOfflineMsg(std::shared_ptr<CSession> session, const std::string& msg_data);
-    
+    void MarkHasDelivered(const int from_uid, const int to_uid, Json::Value& return_value, const Json::Value& unique_ids);
     bool _b_stop;
     std::thread _work_thread;
     //logic_request_queues ————> 逻辑请求队列 这样写更好

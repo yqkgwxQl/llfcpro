@@ -31,7 +31,7 @@ public:
 
     bool SaveChatMessages(std::shared_ptr<ChatMsgRecord> chat_msg_record);
     bool GetOfflineMessages(int from_uid, int to_uid, long long after_id, int limit, std::vector<std::shared_ptr<ChatMsgRecord>>& out);
-    bool MarkMessagesDelivered(const std::vector<std::string>& unique_ids);
+    bool MarkMessagesDelivered(const int from_uid, const int to_uid, const std::vector<std::string>& unique_ids);
 private:
     MysqlMgr();
     MysqlDao  _dao;

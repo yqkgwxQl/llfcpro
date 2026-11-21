@@ -91,11 +91,9 @@ void LogicSystem::RejesterCallBack(){
     _callBacks[ID_GET_APPLY_LIST_REQ] = std::bind(GetApplyListHandler,this,std::placeholders::_1,std::placeholders::_2);
     _callBacks[ID_GET_FRIEND_LIST_REQ] = std::bind(GetFriendListHandler,this,std::placeholders::_1,std::placeholders::_2);
     _callBacks[ID_TEXT_CHAT_MSG_REQ] = std::bind(DealChatTextMsg,this,std::placeholders::_1,std::placeholders::_2);
+    _callBacks[ID_CONFIRM_TEXT_CHAT_MSG_REQ] = std::bind(ConfirmChatTextMsg,this,std::placeholders::_1,std::placeholders::_2);
     _callBacks[ID_GET_OFFLINE_MESSAGE_REQ] = std::bind(GetOfflineMsg,this,std::placeholders::_1,std::placeholders::_2);
-    // BL-22 未接线：客户端 ACK（1046 确认 / 1047 回包）方案暂缓，ConfirmOfflineMsg 还是空函数。
-    // 在它实现之前【不要注册】，否则客户端一旦发 1046 就会永远等不到 1047。
-    // 详见 docs/改造记录.md 的 BL-22。
-    // _callBacks[ID_CONFIRM_OFFLINE_MSG_REQ] = std::bind(ConfirmOfflineMsg,this,std::placeholders::_1,std::placeholders::_2);
+    _callBacks[ID_CONFIRM_OFFLINE_MSG_REQ] = std::bind(ConfirmOfflineMsg,this,std::placeholders::_1,std::placeholders::_2);
 }
 
 void LogicSystem::LoginHandler(std::shared_ptr<CSession> session,const std::string& msg_data){
@@ -270,7 +268,8 @@ void LogicSystem::GetApplyListHandler(std::shared_ptr<CSession> session, const s
     Json::Value root;
     reader.parse(msg_data,root);
 
-    const int uid = root["uid"].asInt();    
+    // const int uid = root["uid"].asInt();    
+    const int uid = session->GetUserId();
     const long long before = root.get("begin", 0).asInt64();    //如果有root["begin"]字段的话，返回该字段。否则返回default_value, 即0
     int limit = root.get("limit", 10).asInt();
     LOGI << "uid is : " << uid << " before_id is : " << before << " limit is : " << limit;
@@ -313,7 +312,8 @@ void LogicSystem::GetFriendListHandler(std::shared_ptr<CSession> session, const 
     Json::Value root;
     reader.parse(msg_data,root);
 
-    const int uid = root["uid"].asInt();    
+    // const int uid = root["uid"].asInt();     // 以后要对客户端的这部分进行删除？？？？？？？
+    const int uid = session->GetUserId(); 
     const long long before = root.get("begin", 0).asInt64();    //如果有root["begin"]字段的话，返回该字段。否则返回default_value, 即0
     int limit = root.get("limit", 10).asInt();
     LOGI << "uid is : " << uid << " before_id is : " << before << " limit is : " << limit;
@@ -359,7 +359,8 @@ void LogicSystem::AddFriendApply(std::shared_ptr<CSession> session,const std::st
     Json::Value root;
     Json::Reader reader;
     reader.parse(msg_data,root);
-    auto uid = root["uid"].asInt();
+    // auto uid = root["uid"].asInt();
+    const int uid = session->GetUserId();
     auto desc = root["desc"].asString();
     auto bakname = root["bakname"].asString();
     auto to_uid = root["touid"].asInt();
@@ -431,7 +432,8 @@ void LogicSystem::AuthFriendApply(std::shared_ptr<CSession> session,const std::s
     Json::Value root;
     Json::Reader reader;
     reader.parse(msg_data,root);
-    int uid = root["uid"].asInt();      // 同意申请的同意者的uid
+    // int uid = root["uid"].asInt();      // 同意申请的同意者的uid
+    int uid = session->GetUserId();
     std::string desc = root["desc"].asString();
     std::string bakname = root["bakname"].asString();
     int toUid = root["touid"].asInt();  //发送申请给被申请者的给被申请者(这时已经同意了)的发送者的uid
@@ -543,11 +545,9 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
     LOGI << "用户A(uid:" << from_uid << ")发送text_msg给好友——用户B(uid:" << to_uid << ")";
     
     //先将信息落库 
-    std::vector<std::string> unique_ids_vector;
     for(const auto& text_obj : text_array){
         if(text_obj.isObject()){
             std::string unique_id = text_obj["unique_id"].asString();
-            unique_ids_vector.push_back(unique_id);
             std::string content = text_obj["content"].asString();
             std::string chat_time = text_obj["chat_time"].asString();
             std::shared_ptr<ChatMsgRecord> chat_msg_record = std::make_shared<ChatMsgRecord>(0, unique_id, from_uid, to_uid, 0, ChatMsgType::TEXT, content, chat_time, 0);
@@ -597,7 +597,6 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
 
             std::string notify_str = notify.toStyledString();
             peer_session->Send(ID_NOTIFY_TEXT_CHAT_MSG_REQ, notify_str);
-            MysqlMgr::GetInstance()->MarkMessagesDelivered(unique_ids_vector);
         }else{
             LOGE << "未找到to_uid(" << to_uid << ")对应的session";
             return_value["online"] = false;
@@ -623,9 +622,30 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
             return_value["online"] = false;             
         }else{
             return_value["online"] = true;
-            MysqlMgr::GetInstance()->MarkMessagesDelivered(unique_ids_vector);
         }
     }
+}
+
+// 这里需要注意: !!! 不是自己DealChatMsg()，然后自己的客户端回传ID_CONFIRM_TEXT_CHAT_MSG_REQ；
+//              是自己 DealChatMsg()，然后对端的客户端回传ID_CONFIRM_TEXT_CHAT_MSG_REQ，对端服务器再ConfirmChatTextMsg() ！！！
+void LogicSystem::ConfirmChatTextMsg(std::shared_ptr<CSession> session, const std::string& msg_data){
+    Json::Value root;
+    Json::Reader reader;
+    reader.parse(msg_data, root);
+    const int from_uid = root["other_uid"].asInt();
+    const int to_uid = session->GetUserId();
+    const Json::Value& unique_ids = root["unique_ids"];
+
+    LOGI << "用户自己(" << to_uid << ")已确认收到 另一用户(" << from_uid << ")的消息";
+    
+    Json::Value return_value;
+    return_value["error"] = ErrorCodes::Success;
+    Defer defer([&session, &return_value](){
+        std::string return_string = return_value.toStyledString();
+        session->Send(ID_CONFIRM_TEXT_CHAT_MSG_RSP, return_string);
+    });
+
+    MarkHasDelivered(from_uid, to_uid, return_value, unique_ids);
 }
 
 void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::string& msg_data){
@@ -642,12 +662,9 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
     Json::Value return_value;
     return_value["error"] = ErrorCodes::Success;
     return_value["from_uid"] = other_uid;
-    std::vector<std::string> unique_ids_vector;
-    Defer defer([&return_value, &session, &unique_ids_vector](){
+    Defer defer([&return_value, &session](){
         std::string return_string = return_value.toStyledString();
         session->Send(ID_GET_OFFLINE_MESSAGE_RSP, return_string);
-        if(!unique_ids_vector.empty())
-            MysqlMgr::GetInstance()->MarkMessagesDelivered(unique_ids_vector);
     });
     if(other_uid <= 0){
         LOGE << "GetOfflineMsg 参数非法: other_uid=" << other_uid;
@@ -680,7 +697,6 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
         Json::Value chat_msg_obj;
         // chat_msg_obj["id"] = chat_msg_record_ptr->_id;
         chat_msg_obj["unique_id"] = chat_msg_record_ptr->_unique_id;
-        unique_ids_vector.push_back(chat_msg_record_ptr->_unique_id);
         chat_msg_obj["msg_type"] = static_cast<int>(chat_msg_record_ptr->_msg_type);
         chat_msg_obj["content"] = chat_msg_record_ptr->_content;
         chat_msg_obj["chat_time"] = chat_msg_record_ptr->_chat_time;
@@ -692,9 +708,40 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
 }
 
 void LogicSystem::ConfirmOfflineMsg(std::shared_ptr<CSession> session, const std::string& msg_data){
+    Json::Value root;
+    Json::Reader reader;
+    reader.parse(msg_data, root);
+    const int to_uid = session->GetUserId();
+    const int from_uid = root["other_uid"].asInt();
+    const Json::Value unique_ids = root["unique_ids"];
+
+    LOGI << "用户自己(" << to_uid << ")已经成功拉取到 另一用户(" << from_uid << ")给它发的离线消息";
     
+    Json::Value return_value;
+    return_value["error"] = ErrorCodes::Success;
+    Defer defer([&session, &return_value](){
+        std::string return_string = return_value.toStyledString();
+        session->Send(ID_CONFIRM_OFFLINE_MSG_RSP, return_string);
+    });
+
+    MarkHasDelivered(from_uid, to_uid, return_value, unique_ids);
 }
 
+void LogicSystem::MarkHasDelivered(const int from_uid, const int to_uid, Json::Value& return_value, const Json::Value& unique_ids){
+    std::vector<std::string> unique_ids_vector;
+    for(const auto& unique_id : unique_ids){
+        if(unique_id.isString() && !unique_id.asString().empty())
+            unique_ids_vector.push_back(unique_id.asString());
+    }
+
+    if(from_uid <= 0 || unique_ids_vector.empty()){
+        return_value["error"] = ErrorCodes::Error_Json;
+    }else if(unique_ids_vector.size() > 128){                // 只防滥用，不是业务上限
+        return_value["error"] = ErrorCodes::Error_Json;
+    }else if(!MysqlMgr::GetInstance()->MarkMessagesDelivered(from_uid, to_uid, unique_ids_vector)){
+        return_value["error"] = ErrorCodes::MysqlMgr_MarkMessagesDelivered_error;
+    }
+}
 
 //感觉这里也可以写成bool LogicSystem::GetBaseInfo(std::string& base_key,std::shared_ptr<UserInfo> &userinfo)？？？？？？？？？？？？？？？
 bool LogicSystem::GetBaseInfo(std::string base_key, int uid, std::shared_ptr<UserInfo> &userinfo){

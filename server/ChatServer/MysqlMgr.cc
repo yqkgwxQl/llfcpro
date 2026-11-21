@@ -80,6 +80,6 @@ bool MysqlMgr::GetOfflineMessages(int from_uid, int to_uid, long long after_id, 
     return _dao.GetOfflineMessages(from_uid, to_uid, after_id, limit, out);
 }
 
-bool MysqlMgr::MarkMessagesDelivered(const std::vector<std::string>& unique_ids){
-    return _dao.MarkMessagesDelivered(unique_ids);
+bool MysqlMgr::MarkMessagesDelivered(const int from_uid, const int to_uid, const std::vector<std::string>& unique_ids){
+    return _dao.MarkMessagesDelivered(from_uid, to_uid, unique_ids);
 }
