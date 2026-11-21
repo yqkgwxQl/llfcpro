@@ -22,7 +22,7 @@ C++ 全栈分布式即时通讯学习项目：Qt 客户端 + 5 个后端服务�
 | `server/sql/` | 数据库结构脚本（仅结构，无数据） |
 | `docs/测试指南.md` | 自动化检查 / 场景测试 / 手工清单（离线/在线、基础设施启停） |
 | `docs/改造记录.md` | ChatServer 合并与健壮性改造的记录（改了什么 / 为什么 / 剩余 backlog） |
-| `tools/test/` | 测试脚本：`health-check.ps1`（只读检查）、`infra-ctl.ps1`（启停 MySQL/Redis）、`test-run.ps1`（场景运行）、`service-run.ps1`（起服务+客户端）、`stack-ctl.ps1`（后台栈启停）、`api-test.ps1`（写库测试，带备份/清理）、`doc-sync.ps1`（文档同步检查） |
+| `tools/test/` | 测试脚本：`health-check.ps1`（只读检查）、`infra-ctl.ps1`（启停 MySQL/Redis）、`test-run.ps1`（场景运行）、`service-run.ps1`（起服务+客户端）、`stack-ctl.ps1`（后台栈启停）、`api-test.ps1`（写库测试，带备份/清理）、`doc-sync.ps1`（文档同步检查）、`msg-proto.ps1`（消息链路协议测试：发送/拉取/ACK/分页/幂等/越权，断言以 `message` 表为准） |
 | `<模块>/build/` | CMake 构建产物，已 gitignore |
 | `<模块>/config.ini` | 真实配置（含密码），已 gitignore，只提交 `.example` |
 
@@ -135,4 +135,4 @@ cd server\ChatServer\build
 | `CMakeLists.txt` 含硬编码绝对路径 | gRPC / protobuf 路径写死为 `E:/zhongzhuan2/grpc/...`，换机器需要改 |
 | 各模块 `config.ini` 不在仓库 | 换机器要按 `.example` 重建；`ChatServer` 还需按 `nodes/<节点>/` 目录重建各节点配置 |
 | 数据库初始化 | 只提交 `server/sql/schema.sql`（结构），**绝不提交任何数据**；已有库需手动把 `user_id.id` 设为当前最大 uid |
-| 客户端消息状态只做到「已送达」 | `SENDING / DELIVERED / FAILED` 已可用，但**发送超时兜底、已读回执、重发幂等**都没做（BL-17 ~ BL-21，2026-11-17 决定暂缓）；另外服务端离线消息其实**没有落库**，会直接丢失（BL-19）。设计与现状见 `docs/改造记录.md` 第 10 节 |
+| 客户端消息状态只做到「服务端已收」 | `SENDING / DELIVERED / FAILED` 已可用；服务端消息已落库、离线消息可拉取（BL-19 ✅ 2026-11-20），投递状态由**接收方 ACK** 确认（BL-22 ✅ 2026-11-21）。仍缺：**发送超时兜底、已读回执、发件箱同步（双向历史）**（BL-17 / BL-20 / BL-25）。设计与现状见 `docs/改造记录.md` 第 10、11 节 |
