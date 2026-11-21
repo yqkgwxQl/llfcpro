@@ -390,10 +390,8 @@ try{
     Invoke-Case 'send' 'M3 非好友：拒发且不落库' {
         $uid3 = New-UniqueId
         $rsp = Send-ChatMsg -Session $sessionA -ToUid 999999 -UniqueId $uid3 -Content "${tagPrefix}/M3" -ChatTime '2026-01-01 00:00:03'
-        # 已知缺陷（2026-11-21 发现）：DealChatTextMsg 的「非好友 / GetRelation 失败」两个分支
-        # 在创建 Defer 之前就 return 了 → 这条路径【不回 1018】，客户端会一直等（BL-17 也没兜底）。
-        # 服务端修好后请去掉 -Known，让它变成硬断言。
-        Add-Check 'M3.1' '返回 error≠0（必须有回包）' ($null -ne $rsp -and $rsp.error -ne 0) $(if($null -eq $rsp){ '服务端未回包（超时）' } else { "error=$($rsp.error)" }) -Known
+        # 2026-11-22：BL-27 已修复（Defer 提前、错误包带 from_uid/to_uid），去掉 -Known 转为硬断言。
+        Add-Check 'M3.1' '返回 error≠0（必须有回包）' ($null -ne $rsp -and $rsp.error -ne 0) $(if($null -eq $rsp){ '服务端未回包（超时）' } else { "error=$($rsp.error)" })
         Add-Check 'M3.2' '库里没有该行' ((Get-MsgRowCount $uid3) -eq 0) "rows=$(Get-MsgRowCount $uid3)"
     }
 
