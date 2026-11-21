@@ -159,6 +159,8 @@ public:
     void SetStatus(MsgStatus status);
     MsgStatus GetStatus()const;
     QString GetChatTime()const;
+    void SetExistInLocalCache(bool exist);
+    bool GetIfExistInLocalCache()const;
 private:
     QString _unique_id;
     int _send_uid;
@@ -167,6 +169,7 @@ private:
     MsgStatus _status;    //这个status是你发送的msg相对于对方的状态——已读，未读... 只有将其设置在ChatItemBase上，ChatItemBase然后再设置图片
                                                                             //，对应的每个气泡组件才会显示对应的状态
     QString _chat_time;
+    bool _exist_in_localcache;
 };
 
 class TextChatData : public ChatDataBase {
@@ -182,7 +185,7 @@ public:
     int GetOtherUid()const;
     const QVector<std::shared_ptr<ChatDataBase>>& GetMsgList()const;
     void UpdateMsgStatus(const QString& unique_id, MsgStatus status);
-    bool AppendMsg(const QString& unique_id, std::shared_ptr<ChatDataBase> msg, bool persist);   //保持先后顺序
+    AppendMsgCode AppendMsg(const QString& unique_id, std::shared_ptr<ChatDataBase> msg, bool persist = true);   //保持先后顺序
     std::shared_ptr<ChatDataBase> GetMsgByUniqueId(const QString& unique_id)const;   //unique_id -> msg
     QString GetLastMsgContent()const;
     QString GetLastMsgTime()const;

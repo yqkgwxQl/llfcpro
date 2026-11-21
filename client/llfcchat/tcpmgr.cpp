@@ -8,6 +8,7 @@
 #include "applyfriendpage.h"
 #include <QVector>
 #include "chatlocaldb.h"
+#include <QMessageBox>
 
 
 namespace {
@@ -190,6 +191,15 @@ void TcpMgr::initHandlers(){
 
         if(ChatLocalDb::GetInstance()->Open(uid)){
             ChatLocalDb::GetInstance()->LoadSession();
+        }else{
+            QMessageBox::warning(nullptr, "本地缓存不可用",
+                                 "无法打开本地聊天缓存数据库。\n\n"
+                                 "本次会话仍可正常收发消息，但并不会保存消息到本地聊天缓存数据库\n"
+                                 "重启客户端后，本地聊天缓存数据库会从远端数据库拉取消息来进行恢复");
+        /*      QMessageBox::warning(parent, title, text) 向用户弹出一个警告对话框
+        parent          nullptr                         父窗口设为空，对话框作为独立的顶级窗口显示在屏幕中央
+        title       "本地缓存不可用"                       对话框的标题栏文本
+        text                                                                    */
         }
 
         emit sig_switch_chatdlg();
@@ -444,6 +454,7 @@ void TcpMgr::initHandlers(){
             chat_session_data->UpdateMsgStatus(unique_id, MsgStatus::DELIVERED);    //更新缓存中的msg的status
             unique_ids_vector_ptr->push_back(unique_id);
         }
+
         emit sig_update_msg_status(to_uid, unique_ids_vector_ptr, MsgStatus::DELIVERED);    //if cur_chat_uid == to_uid，需要立即更新当前chatpage里的msg的status
     });
     //ID_NOTIFY_TEXT_CHAT_MSG_REQ
@@ -474,18 +485,30 @@ void TcpMgr::initHandlers(){
         qDebug() << "receive notify_text_chat_msg_req Success";
 
         int from_uid = jsonObj["from_uid"].toInt();
+        int to_uid = jsonObj["to_uid"].toInt();
         auto chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(from_uid);
         if(!chat_session_data)
             return;
         bool is_has_new_message = false;
+        QJsonArray ack_ids;
         for(const auto& one_msg_doc : jsonObj["text_array"].toArray()){
             QJsonObject msg_obj = one_msg_doc.toObject();
             QString unique_id = msg_obj["unique_id"].toString();
             QString content = msg_obj["content"].toString();
             QString chat_time = msg_obj["chat_time"].toString();
             auto text_chat_data = std::make_shared<TextChatData>(unique_id, from_uid, content, MsgStatus::RECEIVED, chat_time);
-            if(chat_session_data->AppendMsg(unique_id, text_chat_data, true))
+            auto appendmsg_code = chat_session_data->AppendMsg(unique_id, text_chat_data, true);
+            // 可能第一次已经落库和内存中, but ack并没有发到，就可能出现这种情况，所以要加 AppendMsgCode::ALREADY_EXISTS
+            if((appendmsg_code == AppendMsgCode::ADDED) || (appendmsg_code == AppendMsgCode::ALREADY_EXISTS))
+                ack_ids.append(unique_id);
+            if((appendmsg_code == AppendMsgCode::ADDED) || (appendmsg_code == AppendMsgCode::ADDED_MEMORY_ONLY))
                 is_has_new_message = true;
+        }
+        if(!ack_ids.isEmpty()){
+            QJsonObject send_obj;
+            send_obj["other_uid"] = from_uid;       // 谁给我发的消息 ————> 注意：这里已经到了对端
+            send_obj["unique_ids"] = ack_ids;
+            emit sig_send_data(ReqId::ID_CONFIRM_TEXT_CHAT_MSG_REQ, QJsonDocument(send_obj).toJson(QJsonDocument::Compact));
         }
         if(is_has_new_message)
             emit sig_receive_text_chat_msg(from_uid);
@@ -510,7 +533,7 @@ void TcpMgr::initHandlers(){
             qDebug() << "1045: receive get_offline_message_rsp error,err is :" << err;
             const int other_uid = jsonObj["from_uid"].toInt();
             if(other_uid > 0)
-                emit sig_offline_msg_rsp(other_uid, false, 0);   // ★ 让 ChatPage 复位 _loading_more
+                emit sig_offline_msg_rsp(other_uid, false, 0);   // 让 ChatPage 复位 _loading_more
             return;
         }
 
@@ -520,10 +543,12 @@ void TcpMgr::initHandlers(){
         int self_uid = UserMgr::GetInstance()->GetUid();
         bool has_more = jsonObj["has_more"].toBool();
         qint64 max_id = static_cast<qint64>(jsonObj["max_id"].toDouble());
+
         auto chat_session_data = UserMgr::GetInstance()->GetChatSessionByUid(other_uid);
         if(!chat_session_data)
             return;
         qDebug() << "chat_msg_list" << " " << jsonObj["chat_msg_list"].toArray();
+        QJsonArray ack_ids;
         for(const auto& chat_msg_doc : jsonObj["chat_msg_list"].toArray()){
             const QJsonObject obj_2 = chat_msg_doc.toObject();
             // qint64 id = static_cast<qint64>(obj_2["id"].toDouble());
@@ -531,10 +556,66 @@ void TcpMgr::initHandlers(){
             ChatMsgType msg_type = static_cast<ChatMsgType>(obj_2["msg_type"].toInt());
             QString content = obj_2["content"].toString();
             QString chat_time = obj_2["chat_time"].toString();
-            chat_session_data->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, other_uid, msg_type, content, MsgStatus::RECEIVED, chat_time), true);
-            qDebug() << "添加一条离线时的数据(unique_id :" << unique_id << " from_uid: " << other_uid  << ")到用户(self_uid: " << self_uid << ")缓存里";
+            auto appendmsg_code = chat_session_data->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, other_uid, msg_type, content, MsgStatus::RECEIVED, chat_time), true);
+            if((appendmsg_code == AppendMsgCode::ADDED) || (appendmsg_code == AppendMsgCode::ALREADY_EXISTS))
+                ack_ids.append(unique_id);
+        }
+        if(!ack_ids.isEmpty()){
+            QJsonObject send_obj;
+            send_obj["other_uid"] = other_uid;
+            send_obj["unique_ids"] = ack_ids;
+            emit sig_send_data(ReqId::ID_CONFIRM_OFFLINE_MSG_REQ, QJsonDocument(send_obj).toJson(QJsonDocument::Compact));
         }
         emit sig_offline_msg_rsp(other_uid, has_more, max_id);
+    });
+    // ID_CONFIRM_OFFLINE_MSG_RSP
+    _handlers.insert(ReqId::ID_CONFIRM_OFFLINE_MSG_RSP,[this](ReqId reqId,int len,QByteArray data){
+        //忽略len参数
+        Q_UNUSED(len);
+        // qDebug().noquote() << "handle id is " << reqId << " data is:\n" << prettyJson(data);
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(data);
+        if(jsonDoc.isNull()){
+            qDebug() << "1047: Failed to create QJsonDocument.";
+            return;
+        }
+        QJsonObject jsonObj = jsonDoc.object();
+        if(!jsonObj.contains("error")){
+            qDebug() << "1047: jsonObj为空或此jsonObj不属于业务逻辑";
+            return;
+        }
+        auto err = jsonObj["error"].toInt();
+        if(err != ErrorCodes::SUCCESS){
+            qDebug() << "1047: receive confirm_offline_msg_rsp error,err is :" << err;
+            return;
+        }
+
+        qDebug() << "receive confirm_offline_msg_rsp Success";
+
+    });
+
+    // ID_CONFIRM_TEXT_CHAT_MSG_RSP
+    _handlers.insert(ReqId::ID_CONFIRM_TEXT_CHAT_MSG_RSP,[this](ReqId reqId,int len,QByteArray data){
+        //忽略len参数
+        Q_UNUSED(len);
+        // qDebug().noquote() << "handle id is " << reqId << " data is:\n" << prettyJson(data);
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(data);
+        if(jsonDoc.isNull()){
+            qDebug() << "1021: Failed to create QJsonDocument.";
+            return;
+        }
+        QJsonObject jsonObj = jsonDoc.object();
+        if(!jsonObj.contains("error")){
+            qDebug() << "1021: jsonObj为空或此jsonObj不属于业务逻辑";
+            return;
+        }
+        auto err = jsonObj["error"].toInt();
+        if(err != ErrorCodes::SUCCESS){
+            qDebug() << "1021: receive confirm_text_chat_msg_rsp error,err is :" << err;
+            return;
+        }
+
+        qDebug() << "receive confirm_text_chat_msg_rsp Success";
+
     });
 }
 

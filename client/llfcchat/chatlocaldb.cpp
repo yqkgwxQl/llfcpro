@@ -18,7 +18,7 @@ bool ChatLocalDb::Open(int self_uid){
         qDebug() << "ChatLocalDb::Open: 非法uid: " << self_uid;
         return false;
     }
-    if(_db.isValid() && _db.isOpen() && self_uid == _self_uid)       //这里应该是用户重复登录一个账户，复用现有连接
+    if(IsOpen() && self_uid == _self_uid)       //这里应该是用户重复登录一个账户，复用现有连接
         return true;
     Close();        // 换账号：先彻底关掉旧的
     if(!QSqlDatabase::isDriverAvailable(QStringLiteral("QSQLITE"))){
@@ -48,7 +48,7 @@ bool ChatLocalDb::Open(int self_uid){
         所以 "QSQLITE" 决定了：底层是 SQLite 引擎、操作的是一个本地文件、说的是 SQLite 方言。*/
     _db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("llfc_chatcache"));
     _db.setDatabaseName(path);      //告诉QSQLITE， llfc_chatcache的真实路径
-    if(!_db.open()){
+    if(!IsOpen()){
         qDebug() << "ChatLocalDb: 打开失败" << path << _db.lastError().text();
         Close();
         return false;
@@ -84,7 +84,7 @@ bool ChatLocalDb::Open(int self_uid){
 
     所以 _db.close() 和"把连接从注册表里删掉"是两件不同的事。*/
 bool ChatLocalDb::Close(){
-    if(_db.isValid() && _db.isOpen())   //关掉物理连接, 关闭打开的文件
+    if(IsOpen())   //关掉物理连接, 关闭打开的文件
         _db.close();
 
     _db = QSqlDatabase();               // 丢掉手里的句柄, 引用计数 -1
@@ -96,9 +96,11 @@ bool ChatLocalDb::Close(){
     return true;
 }
 
-bool ChatLocalDb::SaveMsg(int other_uid, const std::shared_ptr<ChatDataBase> msg){
-    if(!_db.isOpen() || other_uid <= 0 || !msg || msg->GetUniqueId().isEmpty())
-        return false;
+ChatLocalDb::SaveResult ChatLocalDb::SaveMsg(int other_uid, const std::shared_ptr<ChatDataBase> msg){
+    if(other_uid <= 0 || !msg || msg->GetUniqueId().isEmpty())
+        return SaveResult::WRITE_FAILED;
+    if(!IsOpen())
+        return SaveResult::NOT_OPEN;
     QSqlQuery q(_db);
     q.prepare(QStringLiteral(
         "INSERT OR IGNORE INTO msg(unique_id, other_uid, send_uid, msg_type, content, status, chat_time) "
@@ -113,13 +115,13 @@ bool ChatLocalDb::SaveMsg(int other_uid, const std::shared_ptr<ChatDataBase> msg
 
     if(!q.exec()){
         qDebug() << "ChatLocalDb::SaveMsg 失败" << q.lastError().text() << msg->GetUniqueId();
-        return false;
+        return SaveResult::WRITE_FAILED;
     }
-    return true;
+    return SaveResult::OK;
 }
 
 bool ChatLocalDb::UpdateStatus(const QString& unique_id, MsgStatus status){
-    if(!_db.isOpen())
+    if(!IsOpen())
         return false;
     QSqlQuery q(_db);
     q.prepare(QStringLiteral(
@@ -135,7 +137,7 @@ bool ChatLocalDb::UpdateStatus(const QString& unique_id, MsgStatus status){
 }
 
 bool ChatLocalDb::LoadSession(){
-    if(!_db.isOpen())
+    if(!IsOpen())
         return false;
     QSqlQuery q(_db);
     q.prepare(QStringLiteral(
@@ -165,6 +167,7 @@ bool ChatLocalDb::LoadSession(){
         if(!session)
             continue;
         session->AppendMsg(unique_id, std::make_shared<ChatDataBase>(unique_id, send_uid, msg_type, content, status, chat_time), false);
+
         loading++;
     }
     qDebug() << "ChatLocalDb: 回读消息" << loading << "条";
@@ -173,7 +176,7 @@ bool ChatLocalDb::LoadSession(){
 
 //清理本地数据
 bool ChatLocalDb::Clear(){
-    if(!_db.isOpen())
+    if(!IsOpen())
         return false;
     QSqlQuery q(_db);
     if(!q.exec(QStringLiteral("DELETE FROM msg"))){
@@ -183,6 +186,10 @@ bool ChatLocalDb::Clear(){
     // sqlite_sequence： SQLite 自动创建、自动维护的一本"自增账本"
     q.exec(QStringLiteral("DELETE FROM sqlite_sequence WHERE name='msg'"));  // 让 seq 从 1 重新开始
     return true;
+}
+
+bool ChatLocalDb::IsOpen()const{
+    return _db.isValid() && _db.isOpen();
 }
 
 int ChatLocalDb::GetSelfUid(){

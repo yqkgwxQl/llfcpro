@@ -213,8 +213,12 @@ void ChatPage::on_send_btn_clicked(){
         else
             chat_data_base = std::make_shared<ChatDataBase>(msg_unique_id, self_uid, msg_type, one.content, MsgStatus::SENDING, chat_time);
 
-        //先落地本地缓存
-        chat_session_data->AppendMsg(msg_unique_id, chat_data_base, true);
+        //先落地本地缓存和运行缓存
+        auto appendmsg_code = chat_session_data->AppendMsg(msg_unique_id, chat_data_base, true);
+        if(appendmsg_code == AppendMsgCode::PERSIST_FAILED){
+            qDebug() << "在发送消息之前，将消息落地本地缓存和运行缓存里失败, 此消息发送异常, 丢弃";   //？？？这里应该有提示的
+            continue;
+        }
         //然后再添加气泡
         AppendChatMsg(chat_data_base);
         //发送数据------------

@@ -45,6 +45,8 @@ enum ReqId{
     ID_TEXT_CHAT_MSG_REQ  = 1017,  //文本聊天信息请求
     ID_TEXT_CHAT_MSG_RSP  = 1018,  //文本聊天信息回复
     ID_NOTIFY_TEXT_CHAT_MSG_REQ = 1019, //通知用户文本聊天信息
+    ID_CONFIRM_TEXT_CHAT_MSG_REQ = 1020,
+    ID_CONFIRM_TEXT_CHAT_MSG_RSP = 1021,
 
     ID_GET_APPLY_LIST_REQ = 1040,	//用户刚登陆时只返回给他10条 别人想要添加他为好友的申请（因为一条信息是有限大小的，先第一条回复里
     //包含10个apply, 后续用户如果在他的客户端里向下翻动它的申请列表，则需要发送此请求来获取后续apply)
@@ -53,6 +55,8 @@ enum ReqId{
     ID_GET_FRIEND_LIST_RSP = 1043,
     ID_GET_OFFLINE_MESSAGE_REQ = 1044,	//client从database拉取离线消息
     ID_GET_OFFLINE_MESSAGE_RSP = 1045,
+    ID_CONFIRM_OFFLINE_MSG_REQ = 1046,	//离线消息已收妥
+    ID_CONFIRM_OFFLINE_MSG_RSP = 1047,
 };
 
 enum Modules{
@@ -131,6 +135,20 @@ enum class ChatMsgType{
     PIC = 1,
     FILE = 2
 };
+
+// enum class AppendMsgCode{
+//     ADD_TO_LOCAL_AND_RUNING = 0, //添加到本地缓存和运行缓存里
+//     ADD_TO_RUNING_ONLY = 1,           //仅仅添加到运行缓存里
+//     CANT_ADD = 2,               //本地缓存和运行缓存里已经有了，无法再次添加
+// };
+enum class AppendMsgCode{
+    ADDED = 0,                        // 新增 + 已在库        → ACK ✅ 显示 ✅
+    ADDED_MEMORY_ONLY = 1,            // 新增 + 只在内存      → 不 ACK   显示 ✅
+    ALREADY_EXISTS = 2,               // 已存在 + 已在库和内存 → ACK ✅
+    ALREADY_EXISTS_MEMORY_ONLY = 3,   // 已存在 + 只在内存    → 不 ACK
+    PERSIST_FAILED = 4,               // 写失败，没入内存     → 不 ACK   不显示
+};
+
 /*
  * 1.维度           enum MsgStatus（无 class）                         enum class ChatMsgType（有 class）
 名字作用域	枚举值直接进入外层作用域，UN_READ、READED 全局可见        只能通过 ChatMsgType::TEXT 访问，裸写 TEXT 编译不过
