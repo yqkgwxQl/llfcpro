@@ -10,9 +10,11 @@
 #include <limits>
 #include <thread>
 #include <utility>
+#include <cstring>
 
 #if defined(_WIN32)
-#include <windows.h>   // SetConsoleOutputCP / GetCurrentThreadId
+#include <windows.h>   // SetConsoleOutputCP / GetCurrentThreadId / SetConsoleMode
+#include <io.h>        // _isatty / _fileno
 #endif
 
 // ============================================================================
@@ -95,6 +97,77 @@ void logf(LogLevel level, const char* file, int line, const char* fmt, ...) {
     if (logger) logger->handleV(level, file, line, fmt, ap);
     va_end(ap);
 }
+
+// ---------------------------------------------------------------------------
+//  控制台着色（只在"真终端"上生效；日志文件里永远不带转义码）
+//
+//    LLFC_LOG_COLOR=0 / off / never    强制关闭
+//    LLFC_LOG_COLOR=1 / on  / always   强制开启（验证颜色 / CI 想看颜色时用）
+//    未设置（默认）                     auto：输出目标是终端才上色，
+//                                       重定向到文件 / 管道时保持纯文本
+// ---------------------------------------------------------------------------
+static std::atomic<int> g_colorMode{0};   // 0=auto 1=always 2=never
+
+static bool ansiSupported() {
+#if defined(_WIN32)
+    static std::atomic<int> cached{-1};   // -1=未探测 0=不支持 1=支持
+    int v = cached.load(std::memory_order_relaxed);
+    if (v >= 0) return v == 1;
+
+    bool ok = false;
+    HANDLE h = ::GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD mode = 0;
+    if (h != nullptr && h != INVALID_HANDLE_VALUE && ::GetConsoleMode(h, &mode)) {
+        ok = ::SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0;
+    }
+    // stderr 是另一个句柄，要单独开
+    HANDLE he = ::GetStdHandle(STD_ERROR_HANDLE);
+    DWORD me = 0;
+    if (he != nullptr && he != INVALID_HANDLE_VALUE && ::GetConsoleMode(he, &me)) {
+        ::SetConsoleMode(he, me | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+    }
+
+    cached.store(ok ? 1 : 0, std::memory_order_relaxed);
+    return ok;
+#else
+    return true;
+#endif
+}
+
+static void initColorFromEnv() {
+    const char* v = std::getenv("LLFC_LOG_COLOR");
+    if (v == nullptr || *v == '\0') { g_colorMode.store(0); return; }
+    std::string s(v);
+    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (s == "0" || s == "off" || s == "never")      g_colorMode.store(2);
+    else if (s == "1" || s == "on" || s == "always") g_colorMode.store(1);
+    else                                             g_colorMode.store(0);
+}
+
+static bool colorWanted(std::FILE* out) {
+    const int m = g_colorMode.load(std::memory_order_relaxed);
+    if (m == 2) return false;                 // 明确关闭
+    if (m == 1) return true;                  // 明确开启：不探测、也不看是不是终端
+    if (!ansiSupported()) return false;       // auto：老控制台不支持 VT
+#if defined(_WIN32)
+    return _isatty(_fileno(out)) != 0;        // auto：重定向/管道 → 纯文本
+#else
+    return ::isatty(::fileno(out)) != 0;
+#endif
+}
+
+static const char* colorCode(LogLevel level) {
+    switch (level) {
+        case LogLevel::Debug: return "\x1b[90m";     // 灰
+        case LogLevel::Info:  return "";             // 默认色，不上色
+        case LogLevel::Warn:  return "\x1b[33m";     // 黄
+        case LogLevel::Error: return "\x1b[31m";     // 红
+        case LogLevel::Fatal: return "\x1b[1;91m";   // 加粗亮红
+    }
+    return "";
+}
+
+static const char kColorReset[] = "\x1b[0m";
 
 }  // namespace lfclog
 
@@ -266,6 +339,9 @@ void Logger::Init(const std::string& serviceName,
         ::SetConsoleOutputCP(CP_UTF8);   // 让中文日志在 MinGW 控制台不乱码
     }
 #endif
+
+    // 控制台着色：LLFC_LOG_COLOR=0/1 强制关/开，未设置则 auto（终端才上色）
+    lfclog::initColorFromEnv();
 
     // 头两条日志既有用又能顺手验证系统是通的（第一条会把日志文件建出来）
     LOG_INFO("logger started: service=%s dir=%s level=%s console=%d redirect=%d",
@@ -453,9 +529,14 @@ void Logger::writeLineLocked(LogLevel level, const std::string& src, const std::
 
     // 2) 控制台。Warn 及以上走 stderr，其余走 stdout
     //    （客户端统一走 stderr，这里按项目原来 std::cout/std::cerr 的习惯分开）
+    //    着色只作用在这一段：文件那一路永远写纯文本，避免日志里混进转义码。
     if (console_) {
         std::FILE* out = (static_cast<int>(level) >= static_cast<int>(LogLevel::Warn)) ? stderr : stdout;
+        const char* color = lfclog::colorWanted(out) ? lfclog::colorCode(level) : "";
+        const bool useColor = (color != nullptr && color[0] != '\0');
+        if (useColor) std::fwrite(color, 1, std::strlen(color), out);
         std::fwrite(line.data(), 1, line.size(), out);
+        if (useColor) std::fwrite(lfclog::kColorReset, 1, 4, out);
         std::fflush(out);
     }
 }
