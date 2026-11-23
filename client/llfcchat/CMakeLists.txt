@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.19)
 project(llfcchat LANGUAGES CXX)
 
+# Qt 路径来自仓库根 cmake/LlfcDeps.cmake：
+#   环境变量 LLFC_QT_ROOT 优先 → 未设置则回落本机默认路径（存在才用）
+# 这里只在命令行没给 -DCMAKE_PREFIX_PATH 时才补上，不覆盖用户传的值。
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/LlfcDeps.cmake)
+if(NOT CMAKE_PREFIX_PATH AND LLFC_QT_ROOT)
+    list(APPEND CMAKE_PREFIX_PATH "${LLFC_QT_ROOT}")
+endif()
+message(STATUS "[llfc] Qt prefix : ${CMAKE_PREFIX_PATH}")
+
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Network Sql)
 
 qt_standard_project_setup()

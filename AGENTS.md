@@ -1,7 +1,7 @@
 ﻿# 项目规则（AGENTS.md）
 
 > 给 AI 助手看的项目说明与工作规则，人也可以读。
-> 最后核对：2026-11-17
+> 最后核对：2026-11-23
 
 ## 一、这个项目是什么
 
@@ -21,6 +21,7 @@ C++ 全栈分布式即时通讯学习项目：Qt 客户端 + 5 个后端服务�
 | `server/VarifyServer/` | 验证码 / 邮件服务（Node.js） |
 | `server/sql/` | 数据库结构脚本（仅结构，无数据） |
 | `server/proto/` | **协议唯一真源**：`message.proto` + `generated/`（protoc 3.13.0 生成，入库）；三个 C++ 服务编译同一份，VarifyServer 运行时加载 |
+| `cmake/` | **全仓库唯一的依赖路径调度点**：`LlfcDeps.cmake` 定义 MinGW / gRPC / MySQL Connector / Qt 的根路径（环境变量优先，未设置回落本机默认）；服务端与客户端共用 |
 | `server/common/` | **三个后端服务共用的基础库**（Logger / ConfigMgr / AsioIOServicePool / Redis 组 / MySQL 组 / data.h / const.h），以 STATIC 库 `llfc_common` 供各服务链接 |
 | `docs/测试指南.md` | 自动化检查 / 场景测试 / 手工清单（离线/在线、基础设施启停） |
 | `docs/改造记录.md` | ChatServer 合并与健壮性改造的记录（改了什么 / 为什么 / 剩余 backlog） |
@@ -56,6 +57,8 @@ cmake -S <模块> -B <模块>\build -G "MinGW Makefiles" `
 ```
 
 > `VarifyServer` 不走 CMake，是 Node.js：`npm install` → `npm run serve`。
+
+> **第三方路径可用环境变量覆盖**（未设置则回落本机默认值）：统一在 `cmake/LlfcDeps.cmake`（服务端与客户端都从这里 include）。变量清单：`LLFC_MINGW_ROOT`、`LLFC_GRPC_ROOT`、`LLFC_GRPC_BUILD`、`LLFC_MYSQLCPPCONN_ROOT`、`LLFC_QT_ROOT`。换机器只需设这一次，不必改 CMakeLists。
 
 > `ChatServer` 的编译选项含 `-Werror=return-type`：非 void 函数漏写 `return` 属于 UB，
 > 在 `-O2` 下表现为「随机崩溃」，因此升级为编译错误（曾经由此定位到 `CliOptions.cc` 的回归）。
@@ -126,6 +129,22 @@ cd server\ChatServer\build
 - 新增依赖前先确认能否复用现有 boost / gRPC / Qt，不要引入第二套
 - 数据层与公共常量（`RedisConPool` / `RedisMgr` / `MysqlPool` / `MysqlDao` / `MysqlMgr` / `data.h` / `const.h`）**只在 `server/common/` 存在一份**（2026-11-22 抽出，STATIC 库 `llfc_common`）：改这里即可，**不要**在三个服务目录里再放副本；跑 `doc-sync.ps1` 的 D7（common 齐全 / 服务目录无副本 / 三服务都链接 `llfc_common`）
 
+**日志级别**（`Logger.h` 的 `LOGD/LOGI/LOGW/LOGE/LOGF`）：写之前先问一句 **"这是我的错，还是调用方的错？"**
+
+| 级别 | 用于 | 例子 |
+|---|---|---|
+| `LOGF` | 服务端**跑不下去**（启动即失败） | `config.ini` 读不到、端口被占用、`MysqlMgr` 初始化失败 |
+| `LOGE` | **服务端自身**出了问题，但还能继续跑 | 拿不到 MySQL 连接、`SQLException`、保存消息失败、gRPC 调用失败 |
+| `LOGW` | **调用方请求不合法，且已被正确拒绝/降级**（没有留下副作用） | 非好友发消息、参数非法、uid 不存在、客户端本地库只读降级 |
+| `LOGI` | 正常流程里程碑（谁都没错） | 登录成功、落库 N 条、离线拉取 N 条、服务启停 |
+| `LOGD` | 只在排查时看，**默认不落盘**（`g_minLevel = Info`） | 每帧的 `msg_id`、SQL 参数、缓存命中详情 |
+
+> `health-check.ps1` 的 L4 会把 `[Error]`/`[Fatal]` 计入「服务健康度」（>3 条 → FAIL）：
+> 所以**不要**把客户端错误记成 `LOGE`（否则测试误报，见 BL-28 / BL-29）；反过来，真故障必须用 `LOGE`，否则 L4 抓不到。
+> 注意：「Redis 有 `uip_` 但本机无 session」属于**状态已脏**，仍然用 `LOGE`，不是 `WARN`。
+>
+> **控制台着色**：Debug=灰、Warn=黄、Error=红、Fatal=加粗亮红，Info 用默认色；**只在真终端生效**（重定向 / 管道自动退化为纯文本），日志文件永远不带转义码。LLFC_LOG_COLOR=0 关闭、=1 强制开启（验证用），不设则 auto。
+
 ## 七、已知问题
 
 | 问题 | 说明 |
@@ -134,7 +153,7 @@ cd server\ChatServer\build
 | ~~`message.proto` 4 份拷贝~~ **已解决** | 2026-11-22 收敛为 `server/proto/message.proto` + `server/proto/generated/`（唯一生成物，入库）；四个服务目录不再有副本，`doc-sync.ps1` 的 D8 会检查。改完协议执行 `cmake --build server\ChatServer\build --target regen_proto` |
 | `ChatServer` 运行期探活有延迟 | 连接空闲 ≥600 秒才检查，MySQL 重启后最长约 10 分钟才恢复（BL-10 计划调到 60 秒） |
 | README 缺「源码差异」章节 | README 第 2 节目前只列工程层面差异（构建 / 工具链 / 日志 / 配置 / 目录），源码层面的 diff 仍未写，README 里自己标注了「以后会更新」 |
-| `CMakeLists.txt` 含硬编码绝对路径 | gRPC / protobuf 路径写死为 `E:/zhongzhuan2/grpc/...`，换机器需要改 |
+| ~~`CMakeLists.txt` 含硬编码绝对路径~~ **已缓解** | 2026-11-23 起第三方根路径集中在仓库根 `cmake/LlfcDeps.cmake`，可用环境变量 `LLFC_MINGW_ROOT` / `LLFC_GRPC_ROOT` / `LLFC_GRPC_BUILD` / `LLFC_MYSQLCPPCONN_ROOT` 覆盖，未设置时回落本机默认值。客户端 Qt 路径同样可用 `LLFC_QT_ROOT` 覆盖（未设置时回落 `F:/YingYongRuanJian3/Qt/qita/6.11.0/mingw_64`）。**仍未覆盖**：`server/common/.vscode/*.json` 的 `compilerPath`（该目录已 gitignore，属本机 IDE 配置） |
 | 各模块 `config.ini` 不在仓库 | 换机器要按 `.example` 重建；`ChatServer` 还需按 `nodes/<节点>/` 目录重建各节点配置 |
 | 数据库初始化 | 只提交 `server/sql/schema.sql`（结构），**绝不提交任何数据**；已有库需手动把 `user_id.id` 设为当前最大 uid |
 | 客户端消息状态只做到「服务端已收」 | `SENDING / DELIVERED / FAILED` 已可用；服务端消息已落库、离线消息可拉取（BL-19 ✅ 2026-11-20），投递状态由**接收方 ACK** 确认（BL-22 ✅ 2026-11-21）。仍缺：**发送超时兜底、已读回执、发件箱同步（双向历史）**（BL-17 / BL-20 / BL-25）。设计与现状见 `docs/改造记录.md` 第 10、11 节 |

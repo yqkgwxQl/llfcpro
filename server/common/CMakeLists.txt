@@ -1,3 +1,5 @@
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/LlfcDeps.cmake)
+
 # ============================================================
 #  server/common —— 三个后端服务共用的基础库
 #
@@ -16,9 +18,9 @@
 # ============================================================
 
 # 第三方路径（与各服务 CMakeLists 里同一套；集中到一处便于日后统一，见 BL-09）
-set(LLFC_HIREDIS_INCLUDEDIR "E:/YingYongRuanjian/mingw64/x86_64-w64-mingw32/include/hiredis")
-set(LLFC_MYSQLCPPCONN_INCLUDEDIR "E:/zhongzhuan2/mysql_connector/install_mingw/include")
-set(LLFC_MYSQLCPPCONN_LIB "E:/zhongzhuan2/mysql_connector/install_mingw/lib64/debug/libmysqlcppconn.dll.a")
+set(LLFC_HIREDIS_INCLUDEDIR "${LLFC_MINGW_ROOT}/x86_64-w64-mingw32/include/hiredis")
+set(LLFC_MYSQLCPPCONN_INCLUDEDIR "${LLFC_MYSQLCPPCONN_ROOT}/include")
+set(LLFC_MYSQLCPPCONN_LIB "${LLFC_MYSQLCPPCONN_ROOT}/lib64/debug/libmysqlcppconn.dll.a")
 
 add_library(llfc_common STATIC
     src/Logger.cc

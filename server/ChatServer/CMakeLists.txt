@@ -4,6 +4,9 @@ cmake_policy(SET CMP0144 NEW)
 cmake_policy(SET CMP0167 NEW)
 
 project(CHATSERVER LANGUAGES CXX)
+
+# 第三方依赖根路径（可用环境变量覆盖，见 server/cmake/LlfcDeps.cmake）
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/LlfcDeps.cmake)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -16,24 +19,24 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mconsole")
 
 # 2. 第三方库路径--------------------------------
-set(Boost_ROOT "E:/YingYongRuanjian/mingw64")
+set(Boost_ROOT "${LLFC_MINGW_ROOT}")
 set(BOOST_INCLUDEDIR "${Boost_ROOT}/x86_64-w64-mingw32/include")
 set(BOOST_LIBRARYDIR "${Boost_ROOT}/x86_64-w64-mingw32/lib/lib")
 
-set(JSONCPP_ROOT "E:/YingYongRuanjian/mingw64")
+set(JSONCPP_ROOT "${LLFC_MINGW_ROOT}")
 set(JSONCPP_INCLUDEDIR "${JSONCPP_ROOT}/x86_64-w64-mingw32/include")
 set(JSONCPP_LIBRARYDIR "${JSONCPP_ROOT}/x86_64-w64-mingw32/lib")
 
 # Protobuf（使用 gRPC 自带的，版本一致）
-set(PROTOBUF_INCLUDEDIR "E:/zhongzhuan2/grpc/third_party/protobuf/src")
-set(PROTOBUF_LIB "E:/zhongzhuan2/grpc/build_mingw/third_party/protobuf/libprotobuf.a")
+set(PROTOBUF_INCLUDEDIR "${LLFC_GRPC_ROOT}/third_party/protobuf/src")
+set(PROTOBUF_LIB "${LLFC_GRPC_BUILD}/third_party/protobuf/libprotobuf.a")
 
 # gRPC 构建目录
-set(GRPC_BUILD "E:/zhongzhuan2/grpc/build_mingw")
-set(GRPC_INCLUDEDIR "E:/zhongzhuan2/grpc/include")
+set(GRPC_BUILD "${LLFC_GRPC_BUILD}")
+set(GRPC_INCLUDEDIR "${LLFC_GRPC_ROOT}/include")
 
 # Abseil 头文件路径（protobuf 引用了 absl 头文件）
-set(ABSL_INCLUDEDIR "E:/zhongzhuan2/grpc/third_party/abseil-cpp")
+set(ABSL_INCLUDEDIR "${LLFC_GRPC_ROOT}/third_party/abseil-cpp")
 
 # gRPC 核心库（在 build_mingw 根目录）
 set(GRPC_LIBS
@@ -147,10 +150,12 @@ if(NOT JSONCPP_LIBRARY)
 endif()
 
 # 自动将 config.ini 复制到构建目录（仓库只提供 config.ini.example）
+# 注意：ChatServer 的配置在 nodes/<节点>/config.ini，由 --config 指定，
+#       所以「源码目录没有 config.ini」是正常情况，不应该告警。
 if(EXISTS "${CMAKE_SOURCE_DIR}/config.ini")
     configure_file(${CMAKE_SOURCE_DIR}/config.ini ${CMAKE_BINARY_DIR}/config.ini COPYONLY)
-else()
-    message(WARNING "未找到 config.ini，已跳过复制；请复制 config.ini.example 为 config.ini 后重新 configure。")
+elseif(NOT EXISTS "${CMAKE_SOURCE_DIR}/nodes")
+    message(WARNING "未找到 config.ini，也没有 nodes/ 目录；请复制 config.ini.example 为 config.ini，或按 nodes/<节点>/config.ini 建节点配置。")
 endif()
 
 
@@ -183,8 +188,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${PROTOBUF_INCLUDEDIR}
     ${GRPC_INCLUDEDIR}
     ${ABSL_INCLUDEDIR}
-    E:/zhongzhuan2/mysql_connector/install_mingw/include
-    E:/YingYongRuanjian/mingw64/x86_64-w64-mingw32/include/hiredis
+    ${LLFC_MYSQLCPPCONN_ROOT}/include
+    ${LLFC_MINGW_ROOT}/x86_64-w64-mingw32/include/hiredis
 )
 
 # 6. 链接库-------------------------------------
@@ -202,7 +207,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     -Wl,--end-group
     hiredis
     mysql
-    E:/zhongzhuan2/mysql_connector/install_mingw/lib64/debug/libmysqlcppconn.dll.a
+    ${LLFC_MYSQLCPPCONN_ROOT}/lib64/debug/libmysqlcppconn.dll.a
     ws2_32
     wsock32
     mswsock
@@ -212,10 +217,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 # 7. 复制运行时 DLL 到构建目录--------------------------------
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "E:/YingYongRuanjian/mingw64/x86_64-w64-mingw32/bin/libhiredis.dll"
+        "${LLFC_MINGW_ROOT}/x86_64-w64-mingw32/bin/libhiredis.dll"
         "${CMAKE_BINARY_DIR}/libhiredis.dll"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "E:/zhongzhuan2/mysql_connector/install_mingw/lib64/debug/libmysqlcppconn-10.dll"
+        "${LLFC_MYSQLCPPCONN_ROOT}/lib64/debug/libmysqlcppconn-10.dll"
         "${CMAKE_BINARY_DIR}/libmysqlcppconn-10.dll"
 )
 

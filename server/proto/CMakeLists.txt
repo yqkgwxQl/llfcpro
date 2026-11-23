@@ -1,3 +1,5 @@
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/LlfcDeps.cmake)
+
 # ============================================================
 #  server/proto —— 所有服务共用的协议定义（唯一真源）
 #
@@ -10,12 +12,12 @@
 #      （三个服务的 build 目录都注册了 regen_proto，跑哪个都行）
 #
 #  注意：protoc 必须用 grpc 自带的 3.13.0；
-#       用 E:/zhongzhuan2/protoc/bin/protoc.exe（35.0）生成的 .pb.h
+#       用系统里另一套 protoc（35.0，例如 ...\protoc\bin\protoc.exe）生成的 .pb.h
 #       无法用 3.13 的头文件编译。
 # ============================================================
 
-set(PROTOC_EXE      "E:/zhongzhuan2/grpc/build_mingw/third_party/protobuf/protoc.exe")
-set(GRPC_CPP_PLUGIN "E:/zhongzhuan2/grpc/build_mingw/grpc_cpp_plugin.exe")
+set(PROTOC_EXE      "${LLFC_GRPC_BUILD}/third_party/protobuf/protoc.exe")
+set(GRPC_CPP_PLUGIN "${LLFC_GRPC_BUILD}/grpc_cpp_plugin.exe")
 
 # 注意：--cpp_out / --grpc_out 用相对路径，否则 Windows 盘符里的冒号
 #       会被 protoc 当成生成器选项分隔符（报 Unknown generator option: "E"）。
