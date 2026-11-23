@@ -220,11 +220,11 @@ void LogicSystem::SearchUserHandler(std::shared_ptr<CSession> session,const std:
     try{
         search_uid = std::stoi(search_uid_str);
     }catch(const std::invalid_argument& e){
-        LOGE << "search_uid(" << search_uid_str << ")" << "此uid无法转换为数字";
+        LOGW << "search_uid(" << search_uid_str << ")" << "此uid无法转换为数字";
         return_value["error"] = ErrorCodes::UidInvalid;
         return;
     }catch(const std::out_of_range& e2){
-        LOGE << "search_uid(" << search_uid_str << ")" << " 数值超出int范围";
+        LOGW << "search_uid(" << search_uid_str << ")" << " 数值超出int范围";
         return_value["error"] = ErrorCodes::UidInvalid;
         return;
     }
@@ -528,7 +528,7 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
     return_value["to_uid"] = to_uid;
     if(from_uid <= 0 || to_uid <= 0 || from_uid == to_uid
        || !text_array.isArray() || text_array.size() == 0){
-        LOGE << "DealChatTextMsg 参数非法: from_uid=" << from_uid
+        LOGW << "DealChatTextMsg 参数非法: from_uid=" << from_uid
              << " to_uid=" << to_uid << " text_size=" << text_array.size();
         return_value["error"] = ErrorCodes::Error_Json;
         return;
@@ -540,8 +540,8 @@ void LogicSystem::DealChatTextMsg(std::shared_ptr<CSession> session, const std::
         return_value["error"] = ErrorCodes::MysqlMgr_GetRelation_error;
         return;
     }
-    if(relation != 1){
-        LOGE << "用户A(uid:" << from_uid << ")发送text_msg给用户B(uid:" << to_uid << "), 但是他们并不是好友, 此次发送信息无效";
+    if(relation != 1){     
+        LOGW << "用户A(uid:" << from_uid << ")发送text_msg给用户B(uid:" << to_uid << "), 但是他们并不是好友, 此次发送信息无效";
         return_value["error"] = ErrorCodes::NotFriend;
         return;
     }
@@ -666,7 +666,7 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
         session->Send(ID_GET_OFFLINE_MESSAGE_RSP, return_string);
     });
     if(other_uid <= 0){
-        LOGE << "GetOfflineMsg 参数非法: other_uid=" << other_uid;
+        LOGW << "GetOfflineMsg 参数非法: other_uid=" << other_uid;
         return_value["error"] = ErrorCodes::Error_Json;
         return;
     }
@@ -678,7 +678,7 @@ void LogicSystem::GetOfflineMsg(std::shared_ptr<CSession> session, const std::st
         return;
     }
     if(relation != 1){
-        LOGE << "用户A(uid:" << self_uid << ")拉取自己离线时用户B(uid:" << other_uid << ")给它发的msg, 但是它们并不是好友, 此次拉取信息无效";
+        LOGW << "用户A(uid:" << self_uid << ")拉取自己离线时用户B(uid:" << other_uid << ")给它发的msg, 但是它们并不是好友, 此次拉取信息无效";
         return_value["error"] = ErrorCodes::NotFriend;
         return;
     }
@@ -767,7 +767,7 @@ bool LogicSystem::GetBaseInfo(std::string base_key, int uid, std::shared_ptr<Use
 		//查询数据库
 		auto user_info = std::make_shared<UserInfo>();
 		if (!MysqlMgr::GetInstance()->GetUser(uid, *user_info)) {
-            LOGE << "redis和mysql中均未查到uid :" << uid << " 对应的数据";
+            LOGW << "redis和mysql中均未查到uid :" << uid << " 对应的数据";
 			return false;
 		}
 

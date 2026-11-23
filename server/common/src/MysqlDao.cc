@@ -683,7 +683,7 @@ bool MysqlDao::GetFriendList(int uid, std::vector<std::shared_ptr<FriendInfo>>& 
 bool MysqlDao::GetRelation(int self_uid, int other_uid, int& relation){
     relation = -1; // -1：表示失败
     if(self_uid <= 0 || other_uid <= 0 || self_uid == other_uid){
-        LOGE << "GetRelation 参数非法: self_uid=" << self_uid << " other_uid=" << other_uid;
+        LOGW << "GetRelation 参数非法: self_uid=" << self_uid << " other_uid=" << other_uid;
         return false;
     }
     auto con = _mysqlPool->GetSqlConnection();
@@ -894,7 +894,7 @@ bool MysqlDao::SaveChatMessages(std::shared_ptr<ChatMsgRecord> chat_msg_record){
 
         int rowAffect = pstmt->executeUpdate();
         if(rowAffect == 0)
-            LOGE << "影响 0 行，说明该记录已经存在";
+            LOGI << "影响 0 行，说明该记录已经存在";
         return true;
     }catch(const sql::SQLException& e){
         if (IsConnectionLost(e.getErrorCode())) guard.markBroken();
