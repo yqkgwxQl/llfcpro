@@ -1,4 +1,4 @@
-# LLFCChatPro —— C++ 全栈分布式即时通讯（学习项目）
+﻿# LLFCChatPro —— C++ 全栈分布式即时通讯（学习项目）
 
 > 本项目是对开源项目 **[secondtonone1/llfcchat](https://github.com/secondtonone1/llfcchat)** 的**仿写与改造**，
 > 配合 B 站UP主的视频教程学习：<https://space.bilibili.com/271469206>
@@ -50,7 +50,7 @@
 | **编译器** | MSVC | **MinGW-w64 g++**（`-Wall -Wextra -pthread`） |
 | **C++ 标准** | C++11 | **C++17** |
 | **客户端 Qt** | Qt 5（`.pro` 里兼容 5/6 的写法） | **Qt 6.11**（`find_package(Qt6 6.5)`） |
-| **日志** | 无统一日志模块 | 新增 **`Logger.cc/h`**（异步落盘、分级别、支持 `Logger.md` 说明） |
+| **日志** | 无统一日志模块 | 新增 **`server/common/Logger.cc/h`**（异步落盘、分级别、控制台按级别着色、支持 `Logger.md` 说明） |
 | **配置管理** | 直接放真实 `config.ini` | 仓库只放 **`config.ini.example`**，CMake `configure_file` 自动复制到构建目录 |
 | **节点部署** | 每个节点一份完整源码（`ChatServer1` / `ChatServer2`） | 单个 **`server/ChatServer`** + 每节点一份 **`nodes/<节点>/config.ini`**，用 `--config` 启动多个节点，彻底消除源码副本 |
 | **忽略规则** | 较宽松 | `.gitignore` 收紧：构建产物、IDE 配置、真实配置、含口令的练习目录全部排除 |
@@ -115,7 +115,11 @@
 ```
 llfcchatpro/
 ├─ client/llfcchat/             Qt6 客户端（CMake）
+├─ cmake/
+│  └─ LlfcDeps.cmake            依赖路径调度（MinGW / gRPC / MySQL / Qt，环境变量可覆盖）
 ├─ server/
+│  ├─ common/                   三个后端服务共用的基础库（STATIC 库 llfc_common）
+│  ├─ proto/                    协议唯一真源（message.proto + generated/）
 │  ├─ GateServer/               HTTP 网关
 │  ├─ StatusServer/             状态服务（Token / 用户状态）
 │  ├─ ChatServer/               聊天服务（单 exe，多节点由配置区分）
@@ -138,17 +142,19 @@ llfcchatpro/
 └─ README.md
 ```
 
-每个 C++ 模块内部结构一致：
+每个 C++ 服务模块内部结构一致：
 
 ```
-<模块>/
+server/<服务>/
 ├─ CMakeLists.txt
 ├─ config.ini.example        配置模板（复制成 config.ini 使用）
-├─ *.cc / *.h                源码
-├─ message.proto             gRPC 协议定义
-├─ message.pb.* / *.grpc.pb.*  protoc 生成
+├─ *.cc / *.h                该服务自己的源码（LogicSystem / CSession / CliOptions 等）
 └─ build/                    CMake 构建产物（不入库）
 ```
+
+> 公共代码在 `server/common/`（Logger / ConfigMgr / Redis / MySQL / data.h / const.h），
+> 协议在 `server/proto/`（唯一真源 + 生成物）——两者都不在各服务目录里留副本。
+
 
 `ChatServer` 额外多一层 `nodes/`，每个节点一个目录：配置 + 日志（两者都不入库）：
 
@@ -203,6 +209,10 @@ cmake --build server\GateServer\build --parallel
 ```
 
 其余模块同理：`StatusServer`、`ChatServer`、`client\llfcchat`。
+
+> **依赖路径**：默认值集中写在 `cmake/LlfcDeps.cmake`，换机器时设环境变量即可
+> （`LLFC_MINGW_ROOT` / `LLFC_GRPC_ROOT` / `LLFC_GRPC_BUILD` / `LLFC_MYSQLCPPCONN_ROOT` / `LLFC_QT_ROOT`），
+> 不必再传 `-DCMAKE_PREFIX_PATH`。
 
 ### 6.3 数据库与缓存
 

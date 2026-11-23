@@ -14,6 +14,7 @@
       D7 公共库唯一来源：数据层 + const.h 共 12 个文件只应存在于 server/common；
                     三个服务目录里不允许再出现同名副本，且必须链接 llfc_common
       D8 proto 单一来源：message.proto 只在 server/proto/ 一份，生成物只在 generated/ 一套；
+      D9 README 目录树：cmake/、server/common/、server/proto/ 必须出现在 README §5
                     四个服务目录里不允许出现 message.proto / message.pb.* 副本
 
     只读检查，不修改任何文件。
@@ -242,6 +243,42 @@ foreach ($svc in @("ChatServer", "GateServer", "StatusServer", "VarifyServer")) 
     } else {
         Add-Result ("D8 " + $svc + " 禁止副本") "PASS" "服务目录下无 proto/pb 副本"
     }
+}
+
+# ---------- D9 README 目录树包含「跨模块目录」 ------------------------------
+# 2026-11-23 起仓库有 cmake/、server/common/、server/proto/ 这三个跨模块目录。
+# 经验：抽 common / proto 时只更新了 AGENTS 的目录地图，README §5 的树忘了改，
+#       而 D1~D8 都不检查 README 正文，所以一直没被发现 —— 这里补上。
+
+$readmePath = Join-Path $Root "README.md"
+if (Test-Path -LiteralPath $readmePath) {
+    $readmeText = Get-Content -LiteralPath $readmePath -Raw
+    $tree = $readmeText
+    if ($readmeText -match '(?ms)^## 5\. 目录结构(.*?)^## ') { $tree = $Matches[1] }
+
+    $tokens = @("cmake/", "common/", "proto/")
+    $missDoc = @()
+    foreach ($tk in $tokens) {
+        if ($tree -notmatch [regex]::Escape($tk)) { $missDoc += $tk }
+    }
+    if ($missDoc.Count -gt 0) {
+        Add-Result "D9 README 目录树" "FAIL" ("README §5 缺少: " + ($missDoc -join ", ") + "（新增/移动顶层目录后要同步目录树）")
+    } else {
+        Add-Result "D9 README 目录树" "PASS" "cmake/、server/common/、server/proto/ 都已列出"
+    }
+
+    $dirs = @("cmake", "server/common", "server/proto")
+    $missDisk = @()
+    foreach ($d in $dirs) {
+        if (-not (Test-Path -LiteralPath (Join-Path $Root $d))) { $missDisk += $d }
+    }
+    if ($missDisk.Count -gt 0) {
+        Add-Result "D9 跨模块目录存在性" "FAIL" ("磁盘上缺少: " + ($missDisk -join ", "))
+    } else {
+        Add-Result "D9 跨模块目录存在性" "PASS" "cmake / server/common / server/proto 都在"
+    }
+} else {
+    Add-Result "D9 README 目录树" "FAIL" "缺少 README.md"
 }
 
 # ---------- 汇总 -----------------------------------------------------------
