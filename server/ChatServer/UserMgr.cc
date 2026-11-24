@@ -28,7 +28,7 @@ void UserMgr::SetUserSession(std::size_t uid, std::shared_ptr<CSession> session)
         _uid_to_session[uid] = session;
     }
     if(old_session && old_session != session){
-        LOGE << "uid(" << uid << ") 重复登录，踢掉旧 session: " << old_session->GetSessionId();
+        LOGI << "uid(" << uid << ") 重复登录，踢掉旧 session: " << old_session->GetSessionId();
         old_session->GetServer()->ClearSession(old_session->GetSessionId());
         //这里应该关闭old_session的socket，但是由于多线程受限，不能直接在这里关闭
     }

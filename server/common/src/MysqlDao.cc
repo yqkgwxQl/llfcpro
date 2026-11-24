@@ -523,7 +523,7 @@ bool MysqlDao::AddFriendApply(const int& from_uid,const int& to_uid){
         //执行更新
         int rowAffected = pstmt->executeUpdate();
         if(rowAffected == 0)
-            LOGE << "影响 0 行，条件没匹配到: from_uid=" << from_uid << " to_uid=" << to_uid;
+            LOGI << "影响 0 行，条件没匹配到: from_uid=" << from_uid << " to_uid=" << to_uid;
         return true;//！！！！！！！ ON DUPLICATE KEY UPDATE from_uid = from_uid , to_uid = to_uid ——————> 所以return true
     }catch(const sql::SQLException& e){
         if (IsConnectionLost(e.getErrorCode())) guard.markBroken();
@@ -814,7 +814,7 @@ bool MysqlDao::AddFriend(const int& from_uid, const int& to_uid, const std::stri
         pstmt1->setString(3,back_name);
         int rowAffected = pstmt1->executeUpdate();
         if(rowAffected == 0)            
-            LOGE << "影响 0 行，说明该记录已经存在: from_uid=" << from_uid << " to_uid=" << to_uid;
+            LOGI << "影响 0 行，说明该记录已经存在: from_uid=" << from_uid << " to_uid=" << to_uid;
         //插入对方的好友数据
         std::unique_ptr<sql::PreparedStatement> pstmt2(guard->_con->prepareStatement("INSERT IGNORE INTO friend(self_id,friend_id,back) "
         "VALUES (?,?,?)"));
@@ -828,7 +828,7 @@ bool MysqlDao::AddFriend(const int& from_uid, const int& to_uid, const std::stri
         //     return false;
         // }
         if(rowAffected_2 == 0)
-            LOGE << "影响 0 行，条件没匹配到: from_uid=" << to_uid << " to_uid=" << from_uid;
+            LOGI << "影响 0 行，条件没匹配到: from_uid=" << to_uid << " to_uid=" << from_uid;
         guard->_con->commit();
         return true;
     }catch(const sql::SQLException& e){

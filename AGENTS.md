@@ -1,7 +1,7 @@
-﻿# 项目规则（AGENTS.md）
+# 项目规则（AGENTS.md）
 
 > 给 AI 助手看的项目说明与工作规则，人也可以读。
-> 最后核对：2026-11-23
+> 最后核对：2026-11-24
 
 ## 一、这个项目是什么
 
@@ -129,20 +129,36 @@ cd server\ChatServer\build
 - 新增依赖前先确认能否复用现有 boost / gRPC / Qt，不要引入第二套
 - 数据层与公共常量（`RedisConPool` / `RedisMgr` / `MysqlPool` / `MysqlDao` / `MysqlMgr` / `data.h` / `const.h`）**只在 `server/common/` 存在一份**（2026-11-22 抽出，STATIC 库 `llfc_common`）：改这里即可，**不要**在三个服务目录里再放副本；跑 `doc-sync.ps1` 的 D7（common 齐全 / 服务目录无副本 / 三服务都链接 `llfc_common`）
 
-**日志级别**（`Logger.h` 的 `LOGD/LOGI/LOGW/LOGE/LOGF`）：写之前先问一句 **"这是我的错，还是调用方的错？"**
+**日志级别**（`Logger.h` 的 `LOGD/LOGI/LOGW/LOGE/LOGF`）：写之前先问**两句**：
+
+1. **这是谁的错？** 服务端自身 → `LOGE`；调用方请求不合法 → `LOGW`。
+2. **留下副作用了吗？** 有副作用（改了状态、断了连接、写了半截数据）就不算"被正确拒绝"，
+   `LOGW` 只给"拒绝得干干净净、事后可当成没发生"的请求——这类场景该用 `LOGI`（正常业务）或 `LOGW`（要留痕）。
 
 | 级别 | 用于 | 例子 |
 |---|---|---|
-| `LOGF` | 服务端**跑不下去**（启动即失败） | `config.ini` 读不到、端口被占用、`MysqlMgr` 初始化失败 |
-| `LOGE` | **服务端自身**出了问题，但还能继续跑 | 拿不到 MySQL 连接、`SQLException`、保存消息失败、gRPC 调用失败 |
-| `LOGW` | **调用方请求不合法，且已被正确拒绝/降级**（没有留下副作用） | 非好友发消息、参数非法、uid 不存在、客户端本地库只读降级 |
-| `LOGI` | 正常流程里程碑（谁都没错） | 登录成功、落库 N 条、离线拉取 N 条、服务启停 |
+| `LOGF` | 服务端**跑不下去**（启动即失败） | `config.ini` 读不到、端口被占用、`MysqlMgr` 初始化失败、`BuildAndStart()` 失败 |
+| `LOGE` | **服务端自身**出了问题，但还能继续跑 | 拿不到 MySQL 连接、`SQLException`、保存消息失败、gRPC 调用失败、**状态已脏** |
+| `LOGW` | **调用方请求不合法，且已被正确拒绝/降级**（没有留下副作用） | 非好友发消息、参数非法、uid 不存在、旧连接清理竞态 |
+| `LOGI` | 正常流程里程碑（谁都没错） | 登录成功、落库 N 条、离线拉取 N 条、服务启停、**幂等命中**、重复登录踢旧 session |
 | `LOGD` | 只在排查时看，**默认不落盘**（`g_minLevel = Info`） | 每帧的 `msg_id`、SQL 参数、缓存命中详情 |
 
-> `health-check.ps1` 的 L4 会把 `[Error]`/`[Fatal]` 计入「服务健康度」（>3 条 → FAIL）：
+> `health-check.ps1` 的 L4 会把 `[Error]`/`[Fatal]` 计入「服务健康度」（0 条 PASS / 1~3 条 WARN / >3 条 FAIL）：
 > 所以**不要**把客户端错误记成 `LOGE`（否则测试误报，见 BL-28 / BL-29）；反过来，真故障必须用 `LOGE`，否则 L4 抓不到。
-> 注意：「Redis 有 `uip_` 但本机无 session」属于**状态已脏**，仍然用 `LOGE`，不是 `WARN`。
->
+
+这些边界容易搞错，逐条记住：
+
+- **启动中止用 `LOGF` 而不是 `LOGE`**：服务根本没起来，不该和"运行期出错"混在同一个计数里。
+- **幂等命中用 `LOGI`**：`INSERT IGNORE` / `ON DUPLICATE KEY UPDATE` 返回 0 行是设计上支持的重发路径，
+  不是失败（`SaveChatMessages`、`AddFriendApply`、`AddFriend` 三处）。
+- **状态已脏仍用 `LOGE`**：「Redis 有 `uip_`、本机却没有 session」说明数据不一致，不是正常离线。
+- **同一条件看来源分级别**：服务间 RPC（上游是受信的 GateServer / 对端）传来的 uid 查不到 → 脏数据 → `LOGE`；
+  客户端请求里可被伪造的 uid 不存在 → `LOGW`。
+- **一次失败只在一层记 `ERROR`**：DAO 记 SQL 根因（带上 `from_uid/to_uid/unique_id`），业务层不再重复记，
+  否则一次失败在 L4 里被计 2 条，`≤3` 的阈值就失真了（现存 4 处未收敛，见 BL-29）。
+- **测试断言用 `-Since`**：`health-check.ps1 -Since <用例开始时间>` 只看该时间之后的日志；
+  默认的"末 200 行"会被正常聊天的 `Info` 冲掉，不足以证明用例干净。负向用例（停 MySQL 后发消息必须出现 `[Error]`）见 `docs/测试指南.md` §3 L4。
+
 > **控制台着色**：Debug=灰、Warn=黄、Error=红、Fatal=加粗亮红，Info 用默认色；**只在真终端生效**（重定向 / 管道自动退化为纯文本），日志文件永远不带转义码。LLFC_LOG_COLOR=0 关闭、=1 强制开启（验证用），不设则 auto。
 
 ## 七、已知问题

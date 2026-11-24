@@ -25,11 +25,27 @@
 .PARAMETER Json
     以 JSON 输出结果，便于接入 CI 或其它脚本。
 
+.PARAMETER Since
+    只统计该时间点之后的日志行（默认读最新日志的末尾 200 行）。
+
+    为什么要它：L4 的“末 200 行”在正常聊天时会被 INFO 行迅速冲掉，
+    用例产生的 ERROR 很容易滑出窗口，于是“L4 PASS”并不能证明本次用例干净。
+    做法是先记下开始时间，跑完用例再用 -Since 精确断言：
+
+        $t0 = Get-Date
+        # ... 跑用例（连发 5 次非好友消息等）...
+        tools\test\health-check.ps1 -Since $t0
+
+    指定 -Since 时最多回看末尾 20000 行；日志按天分文件，通常够用。
+
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File tools\test\health-check.ps1
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File tools\test\health-check.ps1 -NoNetwork
+
+.EXAMPLE
+    $t0 = Get-Date; powershell -NoProfile -ExecutionPolicy Bypass -File tools\test\health-check.ps1 -Since $t0
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File tools\test\health-check.ps1 -Json | Out-File report.json -Encoding utf8
@@ -39,7 +55,8 @@ param(
     [string]$Root = "",
     [int]$TimeoutMs = 1500,
     [switch]$NoNetwork,
-    [switch]$Json
+    [switch]$Json,
+    [datetime]$Since = [datetime]::MinValue
 )
 
 $ErrorActionPreference = "Continue"
@@ -130,14 +147,41 @@ function Test-PortNumber {
 }
 
 function Get-LogStats {
-    param([string]$Dir)
+    param(
+        [string]$Dir,
+        [datetime]$Since = [datetime]::MinValue
+    )
     if (-not (Test-Path -LiteralPath $Dir)) { return $null }
     $latest = Get-ChildItem -LiteralPath $Dir -Filter *.log -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if (-not $latest) { return $null }
 
-    $tail = Get-Content -LiteralPath $latest.FullName -Tail 200 -Encoding UTF8 -ErrorAction SilentlyContinue
-    if (-not $tail) { $tail = @() }
+    $useSince = ($Since -ne [datetime]::MinValue)
+
+    # 普通模式沿用“末 200 行”；指定 -Since 时按时间过滤，需要从更早的行开始读
+    $rawLines = if ($useSince) {
+        Get-Content -LiteralPath $latest.FullName -Tail 20000 -Encoding UTF8 -ErrorAction SilentlyContinue
+    } else {
+        Get-Content -LiteralPath $latest.FullName -Tail 200 -Encoding UTF8 -ErrorAction SilentlyContinue
+    }
+    if (-not $rawLines) { $rawLines = @() }
+
+    if ($useSince) {
+        $kept = New-Object System.Collections.ArrayList
+        foreach ($line in $rawLines) {
+            if ($line -match '^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})') {
+                $t = [datetime]::MinValue
+                if ([datetime]::TryParseExact($Matches[1], 'yyyy-MM-dd HH:mm:ss', $null, [System.Globalization.DateTimeStyles]::None, [ref]$t)) {
+                    if ($t -ge $Since) { [void]$kept.Add($line) }
+                }
+            }
+        }
+        $tail = $kept.ToArray()
+        $window = "自 {0} 起" -f $Since.ToString("yyyy-MM-dd HH:mm:ss")
+    } else {
+        $tail = $rawLines
+        $window = "末 200 行"
+    }
 
     # “认证成功”只在启动建池（5 条）和补位时出现；
     # 统计近 10 分钟的条数，避免把一天内多次启动的累计值误判成连接抖动。
@@ -157,7 +201,12 @@ function Get-LogStats {
         File         = $latest.Name
         AgeMinutes   = [int]((Get-Date) - $latest.LastWriteTime).TotalMinutes
         Lines        = $tail.Count
+        Window       = $window
         ErrorCount   = ($tail | Where-Object { $_ -match '\[ERROR\]|\[FATAL\]' }).Count
+        # std::cerr 被 Logger 接管后一律标 Error（Logger.cc 的 cerrBuf_），
+        # 单列出来是为了区分“老代码用 cerr 输出”与“业务代码真的 LOGE 了”
+        StdErrCount  = ($tail | Where-Object { $_ -match '\[(ERROR|FATAL)\] std::cerr ' }).Count
+        WarnCount    = ($tail | Where-Object { $_ -match '\[WARN\]' }).Count
         AuthOkCount  = ($tail | Where-Object { $_ -match '认证成功' }).Count
         AuthOkRecent = $recentAuth
         RefillFail   = ($tail | Where-Object { $_ -match '补连接失败' }).Count
@@ -414,33 +463,57 @@ if (-not $NoNetwork -and $gatePort -gt 0 -and (Test-Listening $gatePort)) {
 
 # ---------- L4 日志健康 ---------------------------------------------------
 
-if ($nodeInfo.Count -eq 0) {
-    Add-Result "L4 日志" "ChatServer 日志" "SKIP" "无节点配置"
+# ChatServer 按节点配置找 logs/；GateServer / StatusServer 的 Logger::Init(..., "logs")
+# 用的是相对进程工作目录（build），所以直接看各自的 build\logs。
+$logTargets = @()
+foreach ($n in $nodeInfo) {
+    $logTargets += [pscustomobject]@{ Label = $n.Label; LogDir = $n.LogDir }
+}
+foreach ($extra in @(
+        @{ Label = "GateServer";   Dir = (Join-Path $Root "server\GateServer\build\logs") },
+        @{ Label = "StatusServer"; Dir = (Join-Path $Root "server\StatusServer\build\logs") })) {
+    if (Test-Path -LiteralPath $extra.Dir) {
+        $logTargets += [pscustomobject]@{ Label = $extra.Label; LogDir = $extra.Dir }
+    }
+}
+
+if ($logTargets.Count -eq 0) {
+    Add-Result "L4 日志" "服务日志" "SKIP" "无节点配置，也没有 GateServer/StatusServer 的 build\logs"
 } else {
-    foreach ($n in $nodeInfo) {
-        $stats = Get-LogStats $n.LogDir
+    foreach ($t in $logTargets) {
+        $stats = Get-LogStats -Dir $t.LogDir -Since $Since
         if (-not $stats) {
-            Add-Result "L4 日志" "$($n.Label) 日志" "WARN" "没有找到日志文件（服务没跑过？）"
+            Add-Result "L4 日志" "$($t.Label) 日志" "WARN" "没有找到日志文件（服务没跑过？）"
             continue
         }
 
-        $detail = "{0}（{1} 分钟前，末 {2} 行）" -f $stats.File, $stats.AgeMinutes, $stats.Lines
-        Add-Result "L4 日志" "$($n.Label) 日志" "PASS" $detail
+        $detail = "{0}（{1} 分钟前，{2}，{3} 行）" -f $stats.File, $stats.AgeMinutes, $stats.Window, $stats.Lines
+        Add-Result "L4 日志" "$($t.Label) 日志" "PASS" $detail
 
-        Add-Result "L4 日志" "$($n.Label) ERROR 数" $(if ($stats.ErrorCount -eq 0) { "PASS" } elseif ($stats.ErrorCount -le 3) { "WARN" } else { "FAIL" }) ("末 200 行内 {0} 条" -f $stats.ErrorCount)
+        Add-Result "L4 日志" "$($t.Label) ERROR 数" $(if ($stats.ErrorCount -eq 0) { "PASS" } elseif ($stats.ErrorCount -le 3) { "WARN" } else { "FAIL" }) ("{0} {1} 条" -f $stats.Window, $stats.ErrorCount)
+
+        # 老代码用 std::cerr 输出会被 Logger 标成 [Error]；单列出来，避免误判成业务故障
+        if ($stats.StdErrCount -gt 0) {
+            Add-Result "L4 日志" "$($t.Label) std::cerr 输出" "WARN" ("{0} {1} 条（老代码路径，业务代码应改用 LOGW/LOGE）" -f $stats.Window, $stats.StdErrCount)
+        }
+
+        # WARN 是"请求被拒绝/降级"，不计入健康度；列出来便于核对级别有没有用错
+        if ($stats.WarnCount -gt 0) {
+            Add-Result "L4 日志" "$($t.Label) WARN 数" "PASS" ("{0} {1} 条（不计入健康度）" -f $stats.Window, $stats.WarnCount)
+        }
 
         if ($stats.RefillFail -gt 0) {
-            Add-Result "L4 日志" "$($n.Label) 连接补位" "WARN" ("末 200 行内 {0} 次补连接失败（Redis 抖动？）" -f $stats.RefillFail)
+            Add-Result "L4 日志" "$($t.Label) 连接补位" "WARN" ("{0} {1} 次补连接失败（Redis 抖动？）" -f $stats.Window, $stats.RefillFail)
         }
 
         if ($stats.TimeoutHits -gt 0) {
-            Add-Result "L4 日志" "$($n.Label) 连接池超时" "WARN" ("末 200 行内 {0} 次" -f $stats.TimeoutHits)
+            Add-Result "L4 日志" "$($t.Label) 连接池超时" "WARN" ("{0} {1} 次" -f $stats.Window, $stats.TimeoutHits)
         }
 
         # 正常情况只应在启动/补位时出现少量“认证成功”；
         # 只有近 10 分钟内就超过一次启动建池量（5 条）才算抖动。
         if ($stats.AuthOkRecent -ge 10) {
-            Add-Result "L4 日志" "$($n.Label) 连接抖动" "WARN" ("近 10 分钟 {0} 次 '认证成功'（可能反复重建连接）" -f $stats.AuthOkRecent)
+            Add-Result "L4 日志" "$($t.Label) 连接抖动" "WARN" ("近 10 分钟 {0} 次 '认证成功'（可能反复重建连接）" -f $stats.AuthOkRecent)
         }
     }
 }

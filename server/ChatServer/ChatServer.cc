@@ -80,13 +80,13 @@ int main(int argc, char* argv[]){
     try{
         MysqlMgr::GetInstance();
         if (!MysqlMgr::GetInstance()->Ping()){
-            LOGE << "MySQL 不可达，节点启动中止（检查 [Mysql] 配置）";
+            LOGF << "MySQL 不可达，节点启动中止（检查 [Mysql] 配置）";
             return Util::kExitStartup;
         }
         auto pool = AsioIOServicePool::GetInstance();
         //将登录数设为0
         if (!RedisMgr::GetInstance()->HSet(LOGIN_COUNT, server_name, "0")) {
-            LOGE << "写入 LOGIN_COUNT 失败，节点启动中止";
+            LOGF << "写入 LOGIN_COUNT 失败，节点启动中止";
             return Util::kExitStartup;
         }
         Defer hdel_count([&](){                                    // ← 紧跟 HSet，覆盖后面所有退出路径
@@ -102,7 +102,7 @@ int main(int argc, char* argv[]){
         std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
         
         if (!server) { 
-            LOGE << "BuildAndStart() error"; 
+            LOGF << "BuildAndStart() error"; 
             return Util::kExitStartup; 
         }
         //让其运行到另一个线程上
