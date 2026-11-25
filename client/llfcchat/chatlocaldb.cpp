@@ -48,7 +48,7 @@ bool ChatLocalDb::Open(int self_uid){
         所以 "QSQLITE" 决定了：底层是 SQLite 引擎、操作的是一个本地文件、说的是 SQLite 方言。*/
     _db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("llfc_chatcache"));
     _db.setDatabaseName(path);      //告诉QSQLITE， llfc_chatcache的真实路径
-    if(!IsOpen()){
+    if(!_db.open()){
         qDebug() << "ChatLocalDb: 打开失败" << path << _db.lastError().text();
         Close();
         return false;

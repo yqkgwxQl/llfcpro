@@ -58,5 +58,6 @@
         <file>res/voice_chat_press.png</file>
         <file>res/icon.ico</file>
         <file>style/stylesheet.qss</file>
+        <file>style/stylesheet.tokened.qss</file>
     </qresource>
 </RCC>

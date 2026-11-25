@@ -167,6 +167,11 @@ enum class AppendMsgCode{
         int n2 = ChatMsgType::TEXT;            // ❌ error: cannot convert 'ChatMsgType' to 'int'
 */
 
+enum class WallpaperLayoutMode{Fill = 0,
+                  Fit,
+                  Center,
+                  Tile,
+              };
 //申请好友标签输入框最低长度 mix_apply_label_ed_len
 const int MIN_APPLY_LABEL_ED_LEN = 40;
 

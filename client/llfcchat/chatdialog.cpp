@@ -11,16 +11,23 @@
 #include "userdata.h"
 #include <QJsonArray>
 #include "conuseritem.h"
+#include "theme/backgroundwid.h"
+#include "theme/ThemeManager.h"
 
 // #include "customizeedit.h"
 
 ChatDialog::ChatDialog(QWidget *parent)
     : QDialog(parent), _fail_count(0), _min_friend_id(0), _loading_more(false), _has_more(true)
-    , _mode(ChatUIMode::ChatMode),_state(ChatUIMode::ChatMode),ui(new Ui::ChatDialog){
+    , _mode(ChatUIMode::ChatMode),_state(ChatUIMode::ChatMode), _bg(nullptr), ui(new Ui::ChatDialog){
     ui->setupUi(this);
     ui->add_btn->SetState("normal","hover","press");
     ui->search_edit->SetMaxLength(15);
     ui->search_edit->setPlaceholderText(QStringLiteral("搜索"));  //QStringLiteral : 编译时就生成好 QString 所需的内部数据，运行时零开销
+
+    ui->chat_user_list->viewport()->setAutoFillBackground(false);
+    ui->con_user_list->viewport()->setAutoFillBackground(false);
+    ui->search_list->setAutoFillBackground(false);
+
     ShowSearch(false);
     //连接加载信号和槽
     connect(ui->chat_user_list,&ChatUserList::sig_loading_chat_user,this,&ChatDialog::slot_load_chat_user);
@@ -44,6 +51,20 @@ ChatDialog::ChatDialog(QWidget *parent)
     // connect(ui->search_edit, &CustomizeEdit::sig_clear_search, this, [this](){
     //     ShowSearch(false);
     // });
+
+    //关于壁纸
+    _bg = new BackgroundWid(this);  //这个是我们自己创建的组件，并未加入原布局里  therefore，必须rect()拿到位置和大小，然后进行设置，才能加入原布局里
+    _bg->setGeometry(rect());   // 和父窗口一样大，铺满整个 ChatDialog
+    _bg->lower();               //把壁纸沉到所有兄弟控件的最下面
+    _bg->refresh();
+
+    connect(ThemeManager::GetInstance().get(), &ThemeManager::sigChanged, this, [this](){
+        if(!_bg)
+            return;
+        _bg->refresh();
+        _bg->setGeometry(rect());
+        _bg->lower();
+    });
 
     //连接申请添加好友信号
     connect(TcpMgr::GetInstance().get(),&TcpMgr::sig_friend_apply,this,&ChatDialog::slot_apply_friend);
@@ -295,6 +316,14 @@ bool ChatDialog::eventFilter(QObject *watched, QEvent *event){
         }
     }
     return QDialog::eventFilter(watched, event);
+}
+
+void ChatDialog::resizeEvent(QResizeEvent *event){
+    QDialog::resizeEvent(event);
+    if (_bg) {
+        _bg->setGeometry(rect());
+        _bg->lower();
+    }
 }
 
 void ChatDialog::ShowSearch(bool bsearch){

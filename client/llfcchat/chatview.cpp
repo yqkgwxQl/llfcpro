@@ -19,7 +19,8 @@ ChatView::ChatView(QWidget* parent)
 
     QWidget* w = new QWidget(this);
     w->setObjectName("chat_bg");
-    w->setAutoFillBackground(true);
+    w->setAutoFillBackground(false);
+    //QScrollArea 的 viewport 默认也会用自己的调色板 Base（白色）填背景。所以即使 QSS 写了 #chat_bg{background:transparent;}，聊天区仍然是白的。
 
     QVBoxLayout* pVLayout_1 = new QVBoxLayout();
     pVLayout_1->addWidget(new QWidget(),100000);

@@ -72,6 +72,11 @@ qt_add_executable(llfcchat
     findhasfrienddlg.h findhasfrienddlg.cpp findhasfrienddlg.ui
     chatlocaldb.h chatlocaldb.cpp
 
+    theme/ThemeManager.h
+    theme/ThemeManager.cpp
+    theme/backgroundwid.h theme/backgroundwid.cpp
+    theme/ThemeTokens.h
+
 
 
 )

@@ -26,6 +26,7 @@ class AuthInfo;
 class AuthRsp;
 class SearchInfo;
 class UserInfo;
+class BackgroundWid;
 
 namespace Ui {
 class ChatDialog;
@@ -52,6 +53,7 @@ public slots:
     void slot_receive_text_chat_msg(int list_item_uid);
 protected:
     bool eventFilter(QObject *, QEvent *) override;
+    virtual void resizeEvent(QResizeEvent* event) override;
 private:
     /*为什么要这样写，里面有个bool bsearch ，我也太理解 ————> 这个函数的意思是：
         告诉我是否要进入搜索模式（bsearch），如果是（true）就切换到搜索面板；如果不是（false），就恢复到进入搜索之前的面板。
@@ -83,6 +85,9 @@ private:
     QList<StateWidget*> _lb_list;
     void addLBGroup(StateWidget* state_widget);
     void clearLabelState(StateWidget* cur_state_widget);
+
+
+    BackgroundWid* _bg;
     Ui::ChatDialog *ui;
 };
 

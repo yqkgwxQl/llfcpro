@@ -62,6 +62,10 @@ server/GateServer/cc_mysql_test/
 server/GateServer/mysql_2/
 server/GateServer/redis_test/
 
+# ---------- 客户端壁纸测试图（体积大、属本机素材，绝不入库）----------
+# 壁纸应由用户自选并保存到 %APPDATA%，仓库只提供主题机制
+client/llfcchat/res/wallpaper/
+
 # ---------- 系统文件 ----------
 .DS_Store
 Thumbs.db
