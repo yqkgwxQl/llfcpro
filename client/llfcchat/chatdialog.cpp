@@ -114,14 +114,14 @@ void ChatDialog::slot_load_chat_user(){
     movie->start();
     qDebug() << "add new data to list.....";
     QApplication::processEvents();
-    // QTimer::singleShot(1000, this, [this, item]() {
-    //     qDebug() << "add new Data to list...";
-    //     addChatUserList();
-    //     ui->chat_user_list->takeItem(ui->chat_user_list->row(item));
-    //     ui->chat_user_list->update();
-    // });
+    QTimer::singleShot(1000, this, [this, item]() {
+        qDebug() << "add new Data to list...";
+        addChatUserList();
+        ui->chat_user_list->takeItem(ui->chat_user_list->row(item));
+        ui->chat_user_list->update();
+    });
     qDebug() << "add new Data to list...";
-    // addChatUserList();
+    addChatUserList();
     loadMoreFriend();
     ui->chat_user_list->takeItem(ui->chat_user_list->row(item));
     ui->chat_user_list->update();
