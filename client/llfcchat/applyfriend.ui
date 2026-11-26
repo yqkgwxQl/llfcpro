@@ -72,7 +72,7 @@
         <number>0</number>
        </property>
        <item>
-        <widget class="QLabel" name="apple_lb">
+        <widget class="QLabel" name="apply_lb">
          <property name="minimumSize">
           <size>
            <width>0</width>

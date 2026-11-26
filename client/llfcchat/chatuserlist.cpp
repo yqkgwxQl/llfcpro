@@ -111,7 +111,7 @@ bool ChatUserList::eventFilter(QObject* watched,QEvent* event){
     // 检查事件是否是鼠标悬浮进入或离开
     if(watched == this->viewport()){
         if(event->type() == QEvent::Enter){
-            this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+            this->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         }else if(event->type() == QEvent::Leave){
             this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         }

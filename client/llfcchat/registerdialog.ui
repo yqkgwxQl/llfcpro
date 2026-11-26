@@ -58,7 +58,7 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout">
            <item>
-            <widget class="QLabel" name="userLable">
+            <widget class="QLabel" name="userLabel">
              <property name="minimumSize">
               <size>
                <width>0</width>
@@ -97,7 +97,7 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_3">
            <item>
-            <widget class="QLabel" name="emailLable">
+            <widget class="QLabel" name="emailLabel">
              <property name="minimumSize">
               <size>
                <width>0</width>
@@ -136,7 +136,7 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_4">
            <item>
-            <widget class="QLabel" name="pwdLable">
+            <widget class="QLabel" name="pwdLabel">
              <property name="minimumSize">
               <size>
                <width>0</width>
@@ -264,7 +264,7 @@
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_6">
            <item>
-            <widget class="QLabel" name="varifyCodeLable">
+            <widget class="QLabel" name="varifyCodeLabel">
              <property name="minimumSize">
               <size>
                <width>0</width>

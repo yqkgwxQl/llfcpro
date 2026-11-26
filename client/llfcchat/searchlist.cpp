@@ -40,7 +40,7 @@ void SearchList::setSearchEdit(CustomizeEdit* search_edit){
 bool SearchList::eventFilter(QObject *watched, QEvent *event){
     if(this->viewport() == watched){
         if(event->type() == QEvent::Enter){
-            this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+            this->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         }else if(event->type() == QEvent::Leave){
             this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         }

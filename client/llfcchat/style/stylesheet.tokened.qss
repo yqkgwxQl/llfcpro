@@ -1,777 +1,759 @@
-QDialog#LoginDialog,#RegisterDialog{
-    background-color:@surface@;
+/* ==========================================================================
+   llfcchat 主题模板（QSS）          文件：client/llfcchat/style/stylesheet.tokened.qss
+   --------------------------------------------------------------------------
+   本文件是【模板】，不是最终样式：
+       @xxx@ 是令牌占位符，运行时由 ThemeManager::buildQss() 替换成 theme.ini
+       里的真实颜色，再整份 qApp->setStyleSheet()。所以这里不该出现裸色值。
+
+   编写约定
+     1. 一个控件只在一处定义；同一控件的各状态写在一起，不许文件两端各写一半。
+     2. 控件尽量带父容器作用域：#父容器 #子控件（如 #search_wid #add_btn、
+        #tool_wid #emo_lb、AddUserItem #add_tip）。判断标准：把 #id 换掉之后，
+        选择器是"更好懂"还是"更啰嗦"——前者加，后者不加。
+        必加：名字通用 + 单一宿主（add_btn / title_lb / emo_lb / name_lb / close_lb …）。
+        以下四类**不加，不是漏了**：
+          a) 容器级控件本身：#side_bar、#tool_wid、#scrollcontent、#apply_wid …
+          b) .ui 的根控件：#LoginDialog、#ApplyFriend、#FindSuccessDlg …
+          c) 代码创建、QSS 里写不出父容器的：#chat_bg、#chat_area、#invalid_item …
+          d) 多宿主共用、故意一条覆盖多个页面的：#errTip、#userLabel、#pwdLabel、
+             #pwdVisbleLabel、#confirmVisbleLabel、#red_point
+        历史上 #user_name_lb 被后面一段裸规则顶掉过字号，正因为在 3 个条目 .ui 里重名；
+        现在它已按 ChatUserWid / ConUserItem / ApplyFriendItem 分别作用域化。
+     3. 纯色一律 background-color；background 只留给「要连图片一起设」的场合。
+     4. 颜色只写 @token@。确实无法令牌化的单点色，行尾注明原因。
+     5. 每条规则上方最多一行注释；长讲解搬到 docs/QSS笔记.md。
+     6. 格式：4 空格缩进，[state='normal'] 不带空格，冒号后一个空格。
+
+   令牌速查（全集与默认值见 theme/ThemeTokens.h）
+     底  sideBar #2e2e2e  bg #f7f7f8  surface #ffffff  surfaceAlt #f0f0f0
+         hover #eaeaea  itemSelected #d3d7d4  itemHover #cecfd0  chipBg #e1e1e1
+         btnBgHover #d2d2d2  btnBgPress #c6c6c6
+     字  text #2e2f30  textStrong #1e1e1e  textMuted #a2a2a2
+         accentText #2cb46e  accentTextAlt #48bf56  onAccent #ffffff
+     线  border #f1f1f1  borderLight #eaeaea  borderStrong #dbd9d9  scrollbar #adaba9
+     色  accentFill #07c160  accentFillHover #3bbb4b  danger #fa5151  success #07c160
+   ========================================================================== */
+
+/* 目录 ---------------------------------------------------------------------
+   §01 全局与共用组件            垂直滚动条 / 跨页共用的胶囊按钮
+   §02 登录 / 注册               logindialog.ui, registerdialog.ui
+   §03 主框架                    chatdialog.ui（侧栏 + 顶部搜索 + 联系人列表）
+   §04 会话列表页                chatpage.ui（标题 / 聊天区 / 工具栏 / 输入区）
+   §05 列表条目                  chatuserwid / conuseritem / grouptipitem
+                                 / adduseritem / applyfrienditem（含纯代码控件）
+   §06 新的朋友页                applyfriendpage.ui
+   §07 找好友弹窗                findsuccessdlg.ui
+   §08 申请 / 验证好友对话框      applyfriend.ui, authenfriend.ui, friendlabel.ui
+   §09 加载框                    loadingdialog.ui
+   -------------------------------------------------------------------------- */
+
+
+/* ==========================================================================
+   §01  全局与共用组件
+   ========================================================================== */
+
+/* --- 1.1 垂直滚动条 ------------------------------------------------------
+   轨道透明 + 滑块胶囊 + 隐藏上下箭头。add-page / sub-page 是滑块上下那两块
+   空白轨道，虽然看不见但仍要保留，否则点它们不能翻页。
+   ------------------------------------------------------------------------ */
+   /*
+       ┌──────────────────────┐
+       │   sub-line (上箭头)   │ ← 单步按钮区域，点一下 -1 行
+       ├──────────────────────┤
+       │                      │
+       │      sub-page        │ ← 滑块【上方】空白轨道
+       │   (点它 = 上翻一页)   │    点一下 -1 页
+       │                      │
+       ├──────────────────────┤
+       │                      │
+       │       handle         │ ← 滑块本体（你拖的就是它）
+       │                      │
+       ├──────────────────────┤
+       │                      │
+       │      add-page        │ ← 滑块【下方】空白轨道
+       │   (点它 = 下翻一页)   │    点一下 +1 页
+       │                      │
+       ├──────────────────────┤
+       │  add-line (下箭头)    │ ← 单步按钮区域，点一下 +1 行    ————>   即箭头区域
+       └──────────────────────┘
+
+        ::add-page { background: none; }	看不见	仍然存在，点空白处还能翻页 ✅
+        ::add-page { height: 0px; }	看不见	被删掉了，点空白处没反应 ❌
+        ::add-line { height: 0px; }	看不见	单步按钮本来就是"可选装饰"，删掉无害 ✅
+    */
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 0px;
 }
 
-#userLable,#pwdLable{
-    color:black;
+QScrollBar::handle:vertical {
+    background-color: @scrollbar@;
+    min-height: 10px;
+    border-radius: 4px;                 /* 宽度 8px 的一半 → 胶囊形 */
 }
 
-/*当 err_tip 控件的 state 属性被设为 'normal' 时，它的文字显示为绿色（通常表示输入正常、验证通过）。
-当 err_tip 控件的 state 属性被设为 'err' 时，它的文字显示为红色（通常表示输入有误、验证失败）。*/
-#errTip[state='normal']{
-    color:green;
-}
-#errTip[state='err']{
-    color:red;
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0px;                    /*没有箭头，也根本用不了 */
+    border: none;
+    background: transparent;
 }
 
-/* 1.#pwdVisbleLabel: 匹配对象名为 "pwdVisbleLabel" 的控件
-   2.[state='invisible'] — 属性选择器
-        方括号 [ ] 匹配 Qt 控件的动态属性（dynamic property）。
-        state='invisible' 表示"当这个控件的 state 属性值等于 `'invisible'" 时才匹配。
-   这个属性是在 C++ 代码中通过 setProperty 设置的：
-        ui->pwdVisbleLabel->setProperty("state", "invisible");   ← 设置属性
-        repolish(ui->pwdVisbleLabel);                             ← 刷新样式
-    3.border-image: 将图片作为控件的边框和背景   会把图片拉伸或平铺到整个控件的边框区域和内容区域，覆盖整个控件表面*/
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: none;           /* 没有显示这两个组件，但是这两个组件是透明的，仍然可以进行使用*/ 
+}
 
-#pwdVisbleLabel[state='invisible']{
+        /* 用于测试++++++++++++
+QScrollBar::add-page:vertical  { background-color: red; }
+QScrollBar::sub-page:vertical  { background-color: blue; }
+QScrollBar::add-line:vertical  { background-color: green; height: 8px; }
+QScrollBar::sub-line:vertical  { background-color: yellow; height: 8px; } */
+
+/* --- 1.2 胶囊按钮（16px 圆角，跨页共用）----------------------------------
+   A 组 · 绿字：聊天页「发送」+ 申请好友弹窗「确认」
+   B 组 · 深字：申请好友弹窗「取消」
+   两组底色序列相同：surfaceAlt → btnBgHover → btnBgPress
+   （另外两种同形状按钮因底色/字号不同，留在各自页面：申请条目 #addBtn 见
+     §05.5，找好友弹窗 #add_friend_btn 见 §07）
+   ------------------------------------------------------------------------ */
+#send_wid #send_btn[state='normal'],
+#apply_sure_wid #sure_btn[state='normal'] {
+    background-color: @surfaceAlt@;
+    color: @accentText@;
+    font-size: 16px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
+}
+
+#send_wid #send_btn[state='hover'],
+#apply_sure_wid #sure_btn[state='hover'] {
+    background-color: @btnBgHover@;
+    color: @accentText@;
+    font-size: 16px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
+}
+
+#send_wid #send_btn[state='press'],
+#apply_sure_wid #sure_btn[state='press'] {
+    background-color: @btnBgPress@;
+    color: @accentText@;
+    font-size: 16px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
+}
+
+#apply_sure_wid #cancel_btn[state='normal'] {
+    background-color: @surfaceAlt@;
+    color: @text@;
+    font-size: 16px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
+}
+
+#apply_sure_wid #cancel_btn[state='hover'] {
+    background-color: @btnBgHover@;
+    color: @text@;
+    font-size: 16px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
+}
+
+#apply_sure_wid #cancel_btn[state='press'] {
+    background-color: @btnBgPress@;
+    color: @text@;
+    font-size: 16px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
+}
+/* apply_sure_wid 的cancel_btn的font是黑色的，but sure_btn是绿色的；这里的对比 ————> 绿色表示我希望用户点击的 */
+
+
+/* ==========================================================================
+   §02  登录 / 注册          logindialog.ui, registerdialog.ui
+   ========================================================================== */
+
+#LoginDialog,
+#RegisterDialog {
+    background-color: @surface@;
+}
+
+#userLabel,
+#pwdLabel {
+    color: @textStrong@;
+}
+
+/* 校验提示：通过为绿、出错为红（state 由 setProperty 在 C++ 里设置） */
+#errTip[state='normal'] {
+    color: @success@;
+}
+
+#errTip[state='err'] {
+    color: @danger@;
+}
+
+/* 密码可见性按钮：4 个状态各一张图；border-image 会把图铺满控件 */
+#pwdVisbleLabel[state='invisible'] {
     border-image: url(:/res/invisible.png);
 }
 
-#pwdVisbleLabel[state='invisible_hover']{
+#pwdVisbleLabel[state='invisible_hover'] {
     border-image: url(:/res/invisible_hover.png);
 }
 
-#pwdVisbleLabel[state='visible']{
+#pwdVisbleLabel[state='visible'] {
     border-image: url(:/res/visible.png);
 }
 
-#pwdVisbleLabel[state='visible_hover']{
+#pwdVisbleLabel[state='visible_hover'] {
     border-image: url(:/res/visible_hover.png);
 }
 
-/*----------------------------------------------*/
-#confirmVisbleLabel[state='invisible']{
+/* 注册页「确认密码」的可见性按钮，图与上面同款 */
+#confirmVisbleLabel[state='invisible'] {
     border-image: url(:/res/invisible.png);
 }
 
-#confirmVisbleLabel[state='invisible_hover']{
-    border-image: url(:/res/invisible_hover);
+#confirmVisbleLabel[state='invisible_hover'] {
+    border-image: url(:/res/invisible_hover.png);
 }
 
-#confirmVisbleLabel[state='visible']{
+#confirmVisbleLabel[state='visible'] {
     border-image: url(:/res/visible.png);
 }
 
-#confirmVisbleLabel[state='visible_hover']{
+#confirmVisbleLabel[state='visible_hover'] {
     border-image: url(:/res/visible_hover.png);
 }
 
-#forgetLabel[state='normal'],#forget_label[state='selected']{
-    color:black;
+/* 忘记密码：常态深字，悬停变链接蓝（链接蓝为单点色，未入令牌）
+   objectName 是 forgetLabel（.ui 里曾误拼成 forgetLable，2026-11-26 已统一改正） */
+   
+   /*forgetLabel应该是链接，而非可选中的label，以后进行处理 */
+#forgetLabel[state='normal'],
+#forgetLabel[state='selected'] {
+    color: @textStrong@;
 }
 
-#forgetLabel[state='hover'], #forget_label[state='selected_hover']{
+#forgetLabel[state='hover'],
+#forgetLabel[state='selected_hover'] {
     color: rgb(42, 112, 241);
 }
 
-#side_bar{
-    background-color:@sideBar@;
+
+/* ==========================================================================
+   §03  主框架               chatdialog.ui
+   ========================================================================== */
+
+/* 最左侧深色竖栏 */
+#side_bar {
+    background-color: @sideBar@;
 }
 
-#add_btn[state = 'normal']{
+/* 侧栏导航 · 会话：常态 / 悬停 / 按下（选中态复用按下图） */
+#side_bar #side_chat_lb[state='normal'] {
+    border-image: url(:/res/chat_icon.png);
+}
+
+#side_bar #side_chat_lb[state='hover'] {
+    border-image: url(:/res/chat_icon_hover.png);
+}
+
+#side_bar #side_chat_lb[state='pressed'],
+#side_bar #side_chat_lb[state='selected_normal'],
+#side_bar #side_chat_lb[state='selected_hover'],
+#side_bar #side_chat_lb[state='selected_pressed'] {
+    border-image: url(:/res/chat_icon_press.png);
+}
+
+/* 侧栏导航 · 通讯录 */
+#side_bar #side_contact_lb[state='normal'] {
+    border-image: url(:/res/contact_list.png);
+}
+
+#side_bar #side_contact_lb[state='hover'] {
+    border-image: url(:/res/contact_list_hover.png);
+}
+
+#side_bar #side_contact_lb[state='pressed'],
+#side_bar #side_contact_lb[state='selected_normal'],
+#side_bar #side_contact_lb[state='selected_hover'],
+#side_bar #side_contact_lb[state='selected_pressed'] {
+    border-image: url(:/res/contact_list_press.png);
+}
+
+/* 侧栏「加好友」按钮 */
+#search_wid #add_btn[state='normal'] {
     border-image: url(:/res/add_friend_normal.png);
 }
 
-#add_btn[state = 'press']{
+#search_wid #add_btn[state='hover'],
+#search_wid #add_btn[state='press'] {
     border-image: url(:/res/add_friend_hover.png);
 }
 
-#add_btn[state = 'hover']{
-    border-image: url(:/res/add_friend_hover.png);
+/* 顶部搜索区：容器与输入框 */
+#search_wid {
+    background-color: @bg@;
 }
 
-#search_wid{
-     background-color:@bg@;
-}
-
-#search_edit {
+#search_wid #search_edit {
     border: 2px solid @border@;
-    /*2px:边框宽度——>2像素
-    solid:边框样式——>实线
-    #f1f1f1——>浅灰色*/
 }
 
-/* 搜索框列表*/
-#search_list {
+/* 搜索结果下拉列表 */
+#chat_user_wid #search_list {
     background-color: @bg@;
     border: none;
 }
 
-#search_list::item:selected {
-    background-color: #d3d7d4;
+#chat_user_wid #search_list::item:selected {
+    background-color: @itemSelected@;
     border: none;
     outline: none;
 }
 
-#search_list::item:hover {
-    background-color: rgb(206,207,208);
+#chat_user_wid #search_list::item:hover {
+    background-color: @itemHover@;
+    border: none;
+    outline: none;  /*选中时可能看到轮廓线*/
+}
+
+/* 右侧联系人列表（分组 / 好友） */
+#chat_user_wid #con_user_list {
+    background-color: @bg@;
+    border: none;
+}
+
+#chat_user_wid #con_user_list::item:selected {
+    background-color: @itemSelected@;
     border: none;
     outline: none;
 }
 
-#search_list::focus {
+#chat_user_wid #con_user_list::item:hover {
+    background-color: @itemHover@;
     border: none;
     outline: none;
 }
 
+
+/* ==========================================================================
+   §04  会话列表页           chatpage.ui
+   ========================================================================== */
+
+/* 顶部标题 */
+#title_wid #title_lb {
+    color: @text;  
+    font-family: "Microsoft YaHei";
+    font-size: 18px;
+    font-weight: normal;
+}
+
+/* 聊天区：chat_area 是 QScrollArea，chat_bg 是它里面的白底容器 */
+#chat_area{
+    border: none;
+}
+
+#chat_bg {
+    background-color: @surfaceAlt@;
+}
+
+/* 消息列表：条目之间的缝隙透明，底色由 #chat_bg 提供（原为 black 死色） */
+#chat_data_list {
+    background-color: transparent;
+}
+
+/* 每条消息上方的发送者昵称（objectName 在 chatitembase.cpp 里设置） */
+#chat_user_name {
+    color: @textMuted@;
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+}
+
+/* 输入区上方的工具栏 */
+#tool_wid {
+    background-color: @surface@;
+    border-bottom: 0.5px solid @borderLight@;
+}
+
+/* 工具栏按钮 · 表情 */
+#tool_wid #emo_lb[state='normal'] {
+    border-image: url(:/res/smile.png);
+}
+
+#tool_wid #emo_lb[state='hover'] {
+    border-image: url(:/res/smile_hover.png);
+}
+
+#tool_wid #emo_lb[state='press'] {
+    border-image: url(:/res/smile_press.png);
+}
+
+/* 工具栏按钮 · 文件 */
+#tool_wid #file_lb[state='normal'] {
+    border-image: url(:/res/filedir.png);
+}
+
+#tool_wid #file_lb[state='hover'] {
+    border-image: url(:/res/filedir_hover.png);
+}
+
+#tool_wid #file_lb[state='press'] {
+    border-image: url(:/res/filedir_press.png);
+}
+
+/* 输入框与发送按钮容器 */
+#chat_data_wid #chat_edit {
+    background-color: @surface@;
+    border: none;
+    font-family: "Microsoft YaHei";
+    font-size: 18px;
+    padding: 5px;
+}
+
+#send_wid {
+    background-color: @surface@;
+    border: none;
+}
+
+/* 发送 / 接收按钮 → 见 §01.2 胶囊按钮 A 组 */
+
+
+/* ==========================================================================
+   §05  列表条目
+   ========================================================================== */
+
+/* --- 5.1 会话条目 ChatUserWid（chatuserwid.ui）+ 所在列表 ---------------- */
+#chat_user_wid #chat_user_list {
+    background-color: @bg@;
+    border: none;
+}
+
+#chat_user_wid #chat_user_list::item:selected {
+    background-color: @itemSelected@;
+    border: none;
+    outline: none;
+}
+
+#chat_user_wid #chat_user_list::item:hover {
+    background-color: @itemHover@;
+    border: none;
+    outline: none;
+}
+
+/* 名字：会话条目与联系人条目共用 14px（申请条目单独 16px，见 §05.5） */
+ChatUserWid #user_name_lb,
+ConUserItem #user_name_lb {
+    color: @textStrong@;
+    font-size: 14px;
+    font-weight: normal;
+    font-family: "Microsoft YaHei";
+}
+
+/* 会话条目里的最后一条消息摘要 */
+ChatUserWid #user_chat_lb {
+    color: @textMuted@;
+    font-size: 12px;
+    font-family: "Microsoft YaHei";
+}
+
+/* 会话条目右下角的时间 */
+#time_wid #time_lb {
+    color: @textMuted@;
+    font-size: 12px;
+    font-family: "Microsoft YaHei";
+}
+
+/* 未读红点：会话条目与联系人条目共用（图片本身是圆点） */
+#red_point {
+    border-image: url(:/res/red_point.png);
+}
+
+/* --- 5.2 联系人条目 ConUserItem（conuseritem.ui）-----------------------
+   名字样式在 5.1 的共用规则里；红点见上。无其它专属样式。
+   ------------------------------------------------------------------------ */
+
+/* --- 5.3 分组标题 GroupTipItem（grouptipitem.ui）------------------------ */
+#GroupTipItem {
+    background-color: @hover@;
+    border: none;
+}
+
+#GroupTipItem QLabel {
+    color: @text@;
+    font-size: 12px;
+    font-family: "Microsoft YaHei";
+    border: none;
+}
+
+/* --- 5.4 搜索结果条目 AddUserItem（adduseritem.ui）---------------------- */
+/* 条目左侧「加好友」图标与右侧「已是好友」图标 */
+AddUserItem #add_tip {
+    border-image: url(:/res/addtip.png);
+}
+
+AddUserItem #right_tip {
+    border-image: url(:/res/right_tip.png);
+}
+
+/* 条目中间的结果文字（12pt ≈ 16px@96dpi，沿用 pt 以免高 DPI 下变形） */
+AddUserItem #message_tip {
+    text-align: center;
+    font-family: "Microsoft YaHei";
+    font-size: 12pt;
+}
+
+/* 搜索无结果时的浅灰提示条 */
 #invalid_item {
     background-color: @hover@;
     border: none;
 }
 
-#add_tip {
-    border-image: url(:/res/addtip.png);
+/* --- 5.5 好友申请条目 ApplyFriendItem（applyfrienditem.ui）------------- */
+ApplyFriendItem {
+    background-color: @surfaceAlt@;
+    border-bottom: 2px solid @borderStrong@;
 }
 
-#right_tip{
- border-image: url(:/res/right_tip.png);
+/* 申请条目的名字比会话条目大一号 */
+ApplyFriendItem #user_name_lb {
+    color: @textStrong@;
+    font-size: 16px;
+    font-weight: normal;
+    font-family: "Microsoft YaHei";
 }
 
-#message_tip{
-  text-align: center;
-  font-family: "Microsoft YaHei";
-  font-size: 12pt;
+/* 申请条目里的验证留言摘要 */
+ApplyFriendItem #user_chat_lb {
+    color: @textMuted@;
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
 }
 
-/*#chat_user_wid{
-    background-color:rgb(0,0,0);
-}*/
-
-#chat_user_list{
-    background-color: @bg@;
-    border: none;
+/* 条目右侧「添加」按钮：浅灰底，比 §01.2 略浅 */
+ApplyFriendItem #addBtn[state='normal'] {
+    background-color: @itemSelected@;
+    color: @accentText@;
+    font-size: 16px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
 }
 
-#chat_user_list::item:selected {
-    background-color: #d3d7d4;
-    border: none;
-    outline: none;
+ApplyFriendItem #addBtn[state='hover'] {
+    background-color: @btnBgHover@;
+    color: @accentText@;
+    font-size: 16px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
 }
 
-#chat_user_list::item:hover {
-    background-color: rgb(206,207,208);
-    border: none;
-    outline: none;
+ApplyFriendItem #addBtn[state='press'] {
+    background-color: @btnBgPress@;
+    color: @accentText@;
+    font-size: 16px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
 }
 
-#chat_user_list::focus {
-    border: none;
-    outline: none;
-}
-/*绘制顺序（从上往下画，前面的盖住后面的）：
-第 1 层（最底层）：QListWidget 绘制自己
-    ┌──────────────────────┐
-    │  list 背景: 247,247,248  │
-    └──────────────────────┘
-
-第 2 层：QListWidget 绘制 item 的背景
-    ┌──────────────────────┐
-    │  item[0]: 247,247,248   │  ← 普通
-    ├──────────────────────┤
-    │  item[1]: #d3d7d4     │  ← 选中！但等一下...
-    ├──────────────────────┤
-    │  item[2]: 247,247,248   │
-    └──────────────────────┘
-
-第 3 层：QListWidget 绘制每个 item 的 widget（ChatUserWid）
-    ┌──────────────────────┐
-    │  ChatUserWid[0]: 247,247,247  │  ← 覆盖 item[0] ✅ （颜色差不多，看不出）
-    ├──────────────────────┤
-    │  ChatUserWid[1]: 247,247,247  │  ← 覆盖了 item[1] 的 #d3d7d4 ❌ （选中效果没了！）
-    ├──────────────────────┤
-    │  ChatUserWid[2]: 247,247,247  │  ← 覆盖 item[2] ✅
-    └──────────────────────┘
-     选中效果被 ChatUserWid 的背景遮住了，完全看不出来
-     */
-/*ChatUserWid {
-    background-color:rgb(247,247,247);
-    border: none;
-}*/
-
-#user_chat_lb{
-    color:rgb(153,153,153);
+/* 「已添加」状态文字 */
+ApplyFriendItem #already_add_lb {
+    color: @textMuted@;
     font-size: 12px;
     font-family: "Microsoft YaHei";
 }
 
-#user_name_lb{
-    color:rgb(0,0,0);
-    font-size: 14px;
-    font-weight: normal;
-    font-family: "Microsoft YaHei";
-}
 
-#time_wid #time_lb{
-   color:rgb(140,140,140);
-   font-size: 12px;
-   font-family: "Microsoft YaHei";
-}
+/* ==========================================================================
+   §06  新的朋友页           applyfriendpage.ui（部分控件由代码创建）
+   ========================================================================== */
 
-/* 1. 滚动条的轨道（背景）*/
-QScrollBar:vertical {
-    background: transparent; /* 轨道背景透明，不遮挡内容 */
-    width: 8px;              /* 将滚动条整体宽度限制为 8 像素（默认通常比较宽） */
-    margin: 0px;             /* 清除默认的边距，让滚动条紧贴边缘 */
-}
-/* 2.滚动条的滑块（Handle）*/
-QScrollBar::handle:vertical {
-    background: @scrollbar@; /* 滑块颜色设置为浅灰色 */
-    min-height: 10px;             /* 滑块的最小高度（防止内容极少时滑块缩成一个点） */
-    border-radius: 4px;           /* 设置 4px 的圆角（宽度是 8px，一半正好是 4px，形成完美的胶囊/椭圆形状） */
-}
-/* 3.隐藏上下箭头按钮*/
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-    height: 0px;       /* 将高度设为 0，彻底隐藏 */
-    border: none;      /* 移除边框 */
-    background: transparent; /* 背景透明 */
-}
-/* 4.隐藏点击轨道产生的背景色*/
-QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-    background: none;  /* 清除轨道上下区域的背景 */
-}
-/*QScrollBar::sub-page:vertical：代表垂直滚动条中，滑块上方的空白轨道区域。
-QScrollBar::add-page:vertical：代表垂直滚动条中，滑块下方的空白轨道区域
-这两个区域不仅仅是视觉上的背景，它们还承担着交互功能。当你用鼠标点击滑块上方或下方的这些空白区域时，列表或文本框会向上或向下翻页滚动*/
-
-LoadingDlg{
-    background: #f2eada;
-}
-
-#title_lb{
+#friend_apply_wid #friend_apply_lb {
     font-family: "Microsoft YaHei";
     font-size: 18px;
     font-weight: normal;
 }
 
-#chat_edit{
-    background: @surface@;
-    border: none; /* 隐藏边框 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    font-size: 18px; /* 设置字体大小 */
-    padding: 5px; /* 设置内边距 */
-}
-
-#send_wid{
-    background: @surface@;
-    border: none; /* 隐藏边框 */
-}
-
-#receive_btn[state='normal']{
-   background: @surfaceAlt@;
-   color: @accentText@;
-   font-size: 16px; /* 设置字体大小 */
-   font-family: "Microsoft YaHei"; /* 设置字体 */
-   border-radius: 20px; /* 设置圆角 */
-}
-
-#receive_btn[state='hover']{
-   background: #d2d2d2;
-   color: @accentText@;
-   font-size: 16px; /* 设置字体大小 */
-   font-family: "Microsoft YaHei"; /* 设置字体 */
-   border-radius: 20px; /* 设置圆角 */
-}
-
-#receive_btn[state='press']{
-   background: #c6c6c6;
-   color: @accentText@;
-   font-size: 16px; /* 设置字体大小 */
-   font-family: "Microsoft YaHei"; /* 设置字体 */
-   border-radius: 20px; /* 设置圆角 */
-}
-
-#send_btn[state='normal']{
-    background: @surfaceAlt@;
-    color: @accentText@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#send_btn[state='hover']{
-   background: #d2d2d2;
-   color: @accentText@;
-   font-size: 16px; /* 设置字体大小 */
-   font-family: "Microsoft YaHei"; /* 设置字体 */
-   border-radius: 20px; /* 设置圆角 */
-}
-
-#send_btn[state='press']{
-   background: #c6c6c6;
-   color: @accentText@;
-   font-size: 16px; /* 设置字体大小 */
-   font-family: "Microsoft YaHei"; /* 设置字体 */
-   border-radius: 20px; /* 设置圆角 */
-}
-
-/*  实际上最规范的写法是定义类，重写QWidget的paintEvent or
-        在ChatPage 构造函数里加一行：ui->tool_wid->setStyleSheet("background:#ffffff; border-bottom:0.5px solid #ececec;");
-    但是在qt6中即是不重写QWidget的paintEvent，对于一些qss属性也是生效的*/
-#tool_wid{
-    background: @surface@;
-    border-bottom: 0.5px solid #ececec; /* 设置下边框颜色和宽度 */
-}
-
-#emo_lb[state='normal']{
-    border-image: url(:/res/smile.png);
-}
-
-#emo_lb[state='hover']{
-    border-image: url(:/res/smile_hover.png);
-}
-
-#emo_lb[state='press']{
-    border-image: url(:/res/smile_press.png);
-}
-
-#file_lb[state='normal']{
-    border-image: url(:/res/filedir.png);
-}
-
-#file_lb[state='hover']{
-    border-image: url(:/res/filedir_hover.png);
-}
-
-#file_lb[state='press']{
-    border-image: url(:/res/filedir_press.png);
-}
-
-#chat_data_list{
-     background: black;
-}
-
-#chat_bg{
-    background: @surfaceAlt@;
-}
-
-#chat_area{
-    border: none;
-}
-
-#chat_user_name{
-    color:rgb(153,153,153);
-    font-size: 14px;
-    font-family: "Microsoft YaHei";
-}
-
-#side_chat_lb[state='normal']{
-    border-image: url(:/res/chat_icon.png);
-}
-
-#side_chat_lb[state='hover']{
-    border-image: url(:/res/chat_icon_hover.png);
-}
-
-#side_chat_lb[state='pressed']{
-    border-image: url(:/res/chat_icon_press.png);
-}
-
-#side_chat_lb[state='selected_normal']{
-    border-image: url(:/res/chat_icon_press.png);
-}
-
-#side_chat_lb[state='selected_hover']{
-    border-image: url(:/res/chat_icon_press.png);
-}
-
-#side_chat_lb[state='selected_pressed']{
-    border-image: url(:/res/chat_icon_press.png);
-}
-
-#side_contact_lb[state='normal']{
-    border-image: url(:/res/contact_list.png);
-}
-
-#side_contact_lb[state='hover']{
-    border-image: url(:/res/contact_list_hover.png);
-}
-
-#side_contact_lb[state='pressed']{
-    border-image: url(:/res/contact_list_press.png);
-}
-
-#side_contact_lb[state='selected_normal']{
-    border-image: url(:/res/contact_list_press.png);
-}
-
-#side_contact_lb[state='selected_hover']{
-    border-image: url(:/res/contact_list_press.png);
-}
-
-#side_contact_lb[state='selected_pressed']{
-    border-image: url(:/res/contact_list_press.png);
-}
-
-#FindSuccessDlg{
-   background-color: @surface@;
-}
-
-#name_lb{
-    font-size: 14px;
-    font-family: "Microsoft YaHei";
-}
-
-#add_friend_btn[state='normal']{
-    background: @accentFill@;
-    color: @onAccent@;
-    font-size: 14px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#add_friend_btn[state='hover']{
-    background: @accentFillHover@;
-    color: @onAccent@;
-    font-size: 14px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#add_friend_btn[state='press']{
-   background: @accentFill@;
-   color: @onAccent@;
-   font-size: 14px; /* 设置字体大小 */
-   font-family: "Microsoft YaHei"; /* 设置字体 */
-   border-radius: 20px; /* 设置圆角 */
-}
-
-#ApplyFriend{
-    border: 2px solid @border@;
-    font-size: 14px;
-    background: @bg@;
-}
-
-#scrollArea{
-    background: @bg@;
-    border: none;
-}
-
-#scrollcontent{
-     background: @bg@;
-}
-
-#scrollcontent #apply_lb{
-    font-family: "Microsoft YaHei";
-    font-size: 16px;
-    font-weight: normal;
-}
-
-#apply_wid QLabel{
-    color:rgb(140,140,140);
-    font-size: 14px;
-    font-family: "Microsoft YaHei";
-    height: 25px;
-}
-
-#apply_wid #name_ed, #apply_wid #back_ed{
-    border: 1px solid #f7f7f8;
-    font-size: 14px;
-    font-family: "Microsoft YaHei";
-}
-
-#apply_wid #lb_ed {
-       border: none;
-       font-size: 14px;
-       font-family: "Microsoft YaHei";
-}
-
-#apply_wid #more_lb{
-    border-image: url(:/res/arowdown.png);
-}
-
-#apply_wid #tipslb[state='normal'] {
-    padding: 2px;
-    background: @chipBg@;
-    color: @textStrong@;
-    border-radius: 10px;
-}
-
-#apply_wid #tipslb[state='hover'] {
-    padding: 2px;
-    background: @chipBg@;
-    color: @textStrong@;
-    border-radius: 10px;
-}
-
-#apply_wid #tipslb[state='pressed'] {
-    padding: 2px;
-    background: @chipBg@;
-    color: @accentTextAlt@;
-    border-radius: 10px;
-}
-
-#apply_wid #tipslb[state='selected_normal'] {
-    padding: 2px;
-    background: @chipBg@;
-    color: @accentTextAlt@;
-    border-radius: 10px;
-}
-
-#apply_wid #tipslb[state='selected_hover'] {
-    padding: 2px;
-    background: @chipBg@;
-    color: @accentTextAlt@;
-    border-radius: 10px;
-}
-
-#apply_wid #tipslb[state='selected_pressed'] {
-    padding: 2px;
-    background: @chipBg@;
-    color: @textStrong@;
-    border-radius: 10px;
-}
-
-#input_tip_wid {
-    background: #d3eaf8;
-}
-
-#apply_wid #FriendLabel {
-    background: #daf6e7;
-    color: @accentTextAlt@;
-    border-radius: 10px;
-}
-
-#apply_wid #tip_lb {
-    padding-left: 2px;
-    color:rgb(153,153,153);
-    font-size: 14px;
-    font-family: "Microsoft YaHei";
-}
-
-#grid_wid {
-   background: @surface@;
-}
-
-#close_lb[state='normal'] {
-    border-image: url(:/res/tipclose.png);
-}
-
-#close_lb[state='hover'] {
-    border-image: url(:/res/tipclose.png);
-}
-
-#close_lb[state='pressed'] {
-    border-image: url(:/res/tipclose.png);
-}
-
-#close_lb[state='select_normal'] {
-    border-image: url(:/res/tipclose.png);
-}
-
-#close_lb[state='select_hover'] {
-    border-image: url(:/res/tipclose.png);
-}
-
-#close_lb[state='select_pressed'] {
-    border-image: url(:/res/tipclose.png);
-}
-
-#apply_sure_wid #sure_btn[state='normal']  {
-    background: @surfaceAlt@;
-    color: @accentText@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#apply_sure_wid #sure_btn[state='hover'] {
-    background: #d2d2d2;
-    color: @accentText@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#apply_sure_wid #sure_btn[state='press'] {
-    background: #c6c6c6;
-    color: @accentText@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#apply_sure_wid #cancel_btn[state='normal']  {
-    background: @surfaceAlt@;
-    color: @text@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#apply_sure_wid #cancel_btn[state='hover'] {
-    background: #d2d2d2;
-    color: @text@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#apply_sure_wid #cancel_btn[state='press'] {
-    background: #c6c6c6;
-    color: @text@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#con_user_list {
-    background-color: @bg@;
-    border: none;
-}
-
-#con_user_list::item:selected {
-    background-color: #d3d7d4;
-    border: none;
-    outline: none;
-}
-
-#con_user_list::item:hover {
-    background-color: rgb(206,207,208);
-    border: none;
-    outline: none;
-}
-
-#con_user_list::focus {
-    border: none;
-    outline: none;
-}
-
-#GroupTipItem {
-    background-color: @hover@;
-    border: none;
-}
-
-#GroupTipItem QLabel{
-    color: @text@;
-    font-size: 12px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border: none;
-}
-
-#new_friend_item {
-     border-bottom: 1px solid #eaeaea;
-}
-
-#LineItem {
-    background-color:@bg@;
-    border: none;
-}
-
-#con_user_list {
-    background-color: @bg@;
-    border: none;
-}
-
-#con_user_list::item:selected {
-    background-color: #d3d7d4;
-    border: none;
-    outline: none;
-}
-
-#con_user_list::item:hover {
-    background-color: rgb(206,207,208);
-    border: none;
-    outline: none;
-}
-
-#con_user_list::focus {
-    border: none;
-    outline: none;
-}
-
-#GroupTipItem {
-    background-color: @hover@;
-    border: none;
-}
-
-#GroupTipItem QLabel{
-    color: @text@;
-    font-size: 12px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border: none;
-}
-
-#new_friend_item {
-     border-bottom: 1px solid #eaeaea;
-}
-
-#LineItem {
-    background-color:@bg@;
-    border: none;
-}
-
-#friend_apply_lb {
-    font-family: "Microsoft YaHei";
-    font-size: 18px;
-    font-weight: normal;
-}
-
+/* 顶部标题带 */
 #friend_apply_wid {
     background-color: @surfaceAlt@;
-    border-bottom: 1px solid #ede9e7;
+    border-bottom: 1px solid @borderLight@;
 }
 
-#apply_friend_list {
+/* 申请列表容器：左侧一条细分隔线，其余边不要 */
+ApplyFriendPage #apply_friend_list {
     background-color: @surfaceAlt@;
-    border-left: 1px solid #ede9e7;
+    border-left: 1px solid @borderLight@;
     border-top: none;
     border-right: none;
     border-bottom: none;
 }
 
-ApplyFriendItem {
-    background-color: @surfaceAlt@;
-    border-bottom: 2px solid #dbd9d9;
+/* 每个条目之间的分隔线 */
+#new_friend_item {
+    border-bottom: 1px solid @borderLight@;
 }
 
-ApplyFriendItem #user_chat_lb{
-    color: @textMuted@;
-    font-size: 14px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
+
+/* ==========================================================================
+   §07  找好友弹窗           findsuccessdlg.ui
+   ========================================================================== */
+
+#FindSuccessDlg {
+    background-color: @surface@;
 }
 
-ApplyFriendItem #addBtn[state='normal'] {
-    background-color: #d3d7d4;
-    color: @accentText@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-ApplyFriendItem #addBtn[state='hover'] {
-    background-color: #D3D3D3;
-    color: @accentText@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-ApplyFriendItem #addBtn[state='press'] {
-    background-color: #BEBEBE;
-    color: @accentText@;
-    font-size: 16px; /* 设置字体大小 */
-    font-family: "Microsoft YaHei"; /* 设置字体 */
-    border-radius: 20px; /* 设置圆角 */
-}
-
-#already_add_lb{
-    color:rgb(153,153,153);
-    font-size: 12px;
+FindSuccessDlg #name_lb {
+    font-size: 14px;
     font-family: "Microsoft YaHei";
 }
 
-#user_name_lb{
-    color:rgb(0,0,0);
+/* 「加好友」按钮：主色填充，比 §01.2 小一号（14px） */
+FindSuccessDlg #add_friend_btn[state='normal'] {
+    background-color: @accentFill@;
+    color: @onAccent@;
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
+}
+
+FindSuccessDlg #add_friend_btn[state='hover'] {
+    background-color: @accentFillHover@;
+    color: @onAccent@;
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
+}
+
+FindSuccessDlg #add_friend_btn[state='press'] {
+    background-color: @accentFill@;
+    color: @onAccent@;
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+    border-radius: 20px;
+}
+
+
+/* ==========================================================================
+   §08  申请 / 验证好友对话框   applyfriend.ui + authenfriend.ui + friendlabel.ui
+   两个对话框共用同一批 objectName，所以这批规则同时对两者生效。
+   ========================================================================== */
+
+/* 对话框外壳 */
+#ApplyFriend {
+    border: 2px solid @border@;
+    font-size: 14px;
+    background-color: @bg@;
+}
+
+/* 滚动区与内容容器 */
+#scrollArea {
+    background-color: @bg@;
+    border: none;
+}
+
+#scrollcontent {
+    background-color: @bg@;
+}
+
+#scrollcontent #apply_lb {
+    font-family: "Microsoft YaHei";
     font-size: 16px;
     font-weight: normal;
+}
+
+/* 表单区：标签统一灰色，高度固定 25px */
+#apply_wid QLabel {
+    color: @textMuted@;
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+    height: 25px;
+}
+
+/* 输入框：边框与页面底色同色，看起来「无边框」 */
+#apply_wid #name_ed,
+#apply_wid #back_ed {
+    border: 1px solid @bg@;
+    font-size: 14px;
     font-family: "Microsoft YaHei";
 }
 
-/* 26_9_12 改进*/
-#red_point {
-    border-image: url(:/res/red_point.png);
-    /* 若图片本身不是小圆点，用下面两行裁成小圆 */
-    /* border-radius: 5px; */
-    /* background: #fa5151; */
+/* 「验证消息」多行框：真无边框 */
+#apply_wid #lb_ed {
+    border: none;
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+}
+
+/* 「更多」下拉箭头 */
+#apply_wid #more_lb {
+    border-image: url(:/res/arowdown.png);
+}
+
+/* 「验证消息」左上的灰色小标题 */
+#apply_wid #tip_lb {
+    padding-left: 2px;
+    color: @textMuted@;
+    font-size: 14px;
+    font-family: "Microsoft YaHei";
+}
+
+/* 提示条：浅蓝底（单点色，未入令牌 —— 只在申请页出现一次） */
+#lb_group_wid #input_tip_wid {
+    background-color: #d3eaf8;
+}
+
+/* 内容网格底 */
+#lb_group_wid #grid_wid {
+    background-color: @surface@;
+}
+
+/* 可点选的标签 chip：常态/悬停/选中按下 为深字，按下/选中 为绿字 */
+#apply_wid #tipslb[state='normal'],
+#apply_wid #tipslb[state='hover'],
+#apply_wid #tipslb[state='selected_pressed'] {
+    padding: 2px;
+    background-color: @chipBg@;
+    color: @textStrong@;
+    border-radius: 10px;
+}
+
+#apply_wid #tipslb[state='pressed'],
+#apply_wid #tipslb[state='selected_normal'],
+#apply_wid #tipslb[state='selected_hover'] {
+    padding: 2px;
+    background-color: @chipBg@;
+    color: @accentTextAlt@;
+    border-radius: 10px;
+}
+
+/* 已选标签（FriendLabel）：浅绿底（单点色，未入令牌） */
+#apply_wid #FriendLabel {
+    background-color: #daf6e7;
+    color: @accentTextAlt@;
+    border-radius: 10px;
+}
+
+/* 标签右上角的小叉：6 个状态共用同一张图 */
+#close_wid #close_lb[state='normal'],
+#close_wid #close_lb[state='hover'],
+#close_wid #close_lb[state='pressed'],
+#close_wid #close_lb[state='select_normal'],
+#close_wid #close_lb[state='select_hover'],
+#close_wid #close_lb[state='select_pressed'] {
+    border-image: url(:/res/tipclose.png);
+}
+
+/* 底部「确认 / 取消」按钮 → 见 §01.2 胶囊按钮 A / B 组 */
+
+
+/* ==========================================================================
+   §09  加载框               loadingdialog.ui
+   ========================================================================== */
+
+/* 暖米色加载底（单点色，未入令牌） */
+LoadingDlg {
+    background-color: #f2eada;
 }

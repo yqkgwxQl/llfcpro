@@ -7,6 +7,7 @@
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QImageReader>
 
 namespace{
     const char* kTemplatePath = ":/style/stylesheet.tokened.qss";
@@ -23,24 +24,11 @@ namespace{
         s.beginGroup(QString::fromUtf8(kIniGroup));
 
         ThemeTokens t = defaultTokens();          // 读不到的键保持默认
-        t.sideBar          = s.value("sideBar",          t.sideBar).toString();
-        t.bg               = s.value("bg",               t.bg).toString();
-        t.surface          = s.value("surface",          t.surface).toString();
-        t.surfaceAlt       = s.value("surfaceAlt",       t.surfaceAlt).toString();
-        t.hover            = s.value("hover",            t.hover).toString();
-        t.chipBg           = s.value("chipBg",           t.chipBg).toString();
-        t.text             = s.value("text",             t.text).toString();
-        t.textStrong       = s.value("textStrong",       t.textStrong).toString();
-        t.textMuted        = s.value("textMuted",        t.textMuted).toString();
-        t.accentText       = s.value("accentText",       t.accentText).toString();
-        t.accentTextAlt    = s.value("accentTextAlt",    t.accentTextAlt).toString();
-        t.onAccent         = s.value("onAccent",         t.onAccent).toString();
-        t.border           = s.value("border",           t.border).toString();
-        t.scrollbar        = s.value("scrollbar",        t.scrollbar).toString();
-        t.accentFill       = s.value("accentFill",       t.accentFill).toString();
-        t.accentFillHover  = s.value("accentFillHover",  t.accentFillHover).toString();
-        t.danger           = s.value("danger",           t.danger).toString();
-        t.success          = s.value("success",          t.success).toString();
+        // 遍历令牌表，不再逐个字段手写：加令牌只改 ThemeTokens.h
+        for (const TokenSlot& slot : tokenSlots()) {
+            const QString key = QString::fromLatin1(slot.key);
+            t.*(slot.member) = s.value(key, t.*(slot.member)).toString();
+        }
 
         s.endGroup();
 
@@ -55,24 +43,8 @@ namespace{
         QSettings s(dir + QStringLiteral("/theme.ini"), QSettings::IniFormat);  //这里并不会if文件不存在就立即生成
         s.beginGroup(QString::fromUtf8(kIniGroup));
 
-        s.setValue("sideBar",         _tokens.sideBar);
-        s.setValue("bg",              _tokens.bg);
-        s.setValue("surface",         _tokens.surface);
-        s.setValue("surfaceAlt",      _tokens.surfaceAlt);
-        s.setValue("hover",           _tokens.hover);
-        s.setValue("chipBg",          _tokens.chipBg);
-        s.setValue("text",            _tokens.text);
-        s.setValue("textStrong",      _tokens.textStrong);
-        s.setValue("textMuted",       _tokens.textMuted);
-        s.setValue("accentText",      _tokens.accentText);
-        s.setValue("accentTextAlt",   _tokens.accentTextAlt);
-        s.setValue("onAccent",        _tokens.onAccent);
-        s.setValue("border",          _tokens.border);
-        s.setValue("scrollbar",       _tokens.scrollbar);
-        s.setValue("accentFill",      _tokens.accentFill);
-        s.setValue("accentFillHover", _tokens.accentFillHover);
-        s.setValue("danger",          _tokens.danger);
-        s.setValue("success",         _tokens.success);
+        for (const TokenSlot& slot : tokenSlots())
+            s.setValue(QString::fromLatin1(slot.key), _tokens.*(slot.member));
 
         s.endGroup();
         s.sync();                   // // 马上写文件
@@ -109,8 +81,14 @@ QString ThemeManager::buildQss(){
         qss.replace(p.first, p.second);
 
     // 兜底：模板里出现没定义的令牌时，这里能直接看到
+    // 先剥掉 /* */ 注释再查，否则注释里举例写的 @xxx@ 会被误报
+    QString bare = qss;
+    static const QRegularExpression commentRe(
+        QStringLiteral("/\\*.*?\\*/"), QRegularExpression::DotMatchesEverythingOption);
+    bare.remove(commentRe);
+
     static const QRegularExpression leftover(QStringLiteral("@[A-Za-z][A-Za-z0-9]*@"));
-    auto it = leftover.globalMatch(qss);
+    auto it = leftover.globalMatch(bare);
     while (it.hasNext())
         qWarning() << "[theme] 未定义令牌:" << it.next().captured();
 
@@ -176,26 +154,43 @@ int ThemeManager::wallpaperScrimAlpha()const{
 }
 
 void ThemeManager::setWallpaperPath(const QString& path){
+    if (_wallpaperPath == path)
+        return;
     _wallpaperPath = path;
+    if(path.isEmpty()){
+        _toneTitle = _toneBody = -1;
+    }else {
+        _toneTitle = computeWallpaperTone(path, 0.0,    1.0/6);
+        _toneBody  = computeWallpaperTone(path, 1.0/6,  1.0);
+    }
     _dirty = true;
     emit sigChanged();
 }
-void ThemeManager::setWallpaperBlur(int opacity){
-    _wallpaperBlur = qBound(0, opacity, 40);
+void ThemeManager::setWallpaperBlur(int blur){
+    auto newBlur = qBound(0, blur, 40);
+    if(_wallpaperBlur == newBlur)
+        return;
+    _wallpaperBlur = newBlur;
     _dirty = true;
     emit sigChanged();
 }
 void ThemeManager::setWallpaperMode(WallpaperLayoutMode mode){
+    if(_wallpaperMode == mode)
+        return;
     _wallpaperMode = mode;
     _dirty = true;
     emit sigChanged();
 }
 void ThemeManager::setWallpaperOpacity(int percent){
+    if(_wallpaperOpacity == percent)
+        return;
     _wallpaperOpacity = qBound(0, percent, 100);
     _dirty = true;
     emit sigChanged();
 }
 void ThemeManager::setWallpaperScrimAlpha(int alpha){
+    if(_wallpaperScrimAlpha == alpha)
+        return;
     _wallpaperScrimAlpha = qBound(0, alpha, 255);
     _dirty = true;
     emit sigChanged();
@@ -212,13 +207,46 @@ QString ThemeManager::wallpaperOverride()const{
     QString s;
     s += "\n/* ===== wallpaper override ===== */\n";
         //其余的side_bar, list, chat_bg 是透明的，可以看到wallpaper
-    s += "#side_bar{background:rgba(46,46,46,170);}\n";
-    s += "#chat_user_list,#search_list,#con_user_list{background:transparent;}\n";
+    s += QString("#side_bar{background:%1;}\n").arg(rgba(tokens().sideBar, 170));
+    // 注意：选择器必须与主样式表 style/stylesheet.tokened.qss 里的「特异性」持平或更高。
+    // 主表里这些控件的规则已带父容器作用域（2 个 id），override 只写 1 个 id 会被压住
+    // —— QSS 按 CSS 特异性比较，跟书写顺序无关。曾经就因此让列表/输入框变回不透明。
+    s += "#chat_user_wid #chat_user_list,#chat_user_wid #search_list,#chat_user_wid #con_user_list{background:transparent;}\n";
     s += "ChatPage,#chat_bg,#chat_data_list{background:transparent;}\n";
-        //这三个组件不是transparent
+        //这三个组件不是transparent，用半透明白让壁纸透一点
     s += QString("#tool_wid,#send_wid{background:%1;}\n").arg(rgba(surf, 200));
-    s += QString("#chat_edit{background:%1;}\n").arg(rgba(surf, 220));
-    s += QString("#search_wid{background:%1;}\n").arg(rgba(bg, 160));
-    s += "#search_edit{background:transparent;}\n";   // QLineEdit 默认白底，必须显式改
+    s += QString("#chat_data_wid #chat_edit{background:%1;}\n").arg(rgba(surf, 220));
+        //搜索栏：alpha 从 160 提到 220（160 时 63% 白叠在深色壁纸上会发灰）
+    s += QString("#search_wid{background:%1;}\n").arg(rgba(bg, 220));
+        //搜索框是输入控件，必须清楚可读 —— 用实心白，不再透明
+    s += QString("#search_wid #search_edit{background:%1;}\n").arg(surf);
+        //标题根据壁纸的亮暗进行黑白显示
+    // 标题       阈值 128 落在"两边都不好看"的灰区 ————> 阈值从 128 挪到 140：宁可早一点转白字（白字在灰底上的观感通常更好）
+    if (_toneTitle >= 0)
+        s += QString("#title_wid #title_lb{color:%1;}\n")
+                 .arg(_toneTitle < 140 ? "#ffffff" : tokens().text);
+
+    // 发送者名字：暗→反白；亮→用 @text（不是 muted！）
+    if (_toneBody >= 0)
+        s += QString("#chat_user_name{color:%1;}\n")
+                 .arg(_toneBody < 140 ? "rgba(255,255,255,200)" : tokens().text);
     return s;
+}
+
+int ThemeManager::computeWallpaperTone(const QString& path, double fromRatio, double toRatio)const{
+    QImageReader reader(path);              // 比 QImage(path) 多一层控制
+    reader.setScaledSize(QSize(64, 64));    // 解码时就缩小（JPEG 走 DCT 缩放，很快）
+    const QImage img = reader.read();
+    if (img.isNull()) return -1;
+
+    const int from = static_cast<int>(qMax(1.0, img.height()*fromRatio));
+    const int to = static_cast<int>(qMax(1.0, img.height()*toRatio));
+    double sum = 0;
+    for (int y = from; y < to; ++y)
+        for (int x = 0; x < img.width(); ++x) {
+            const QColor c = img.pixelColor(x, y);
+            //按照人眼能够感知亮度的比例进行对应权重的加
+            sum += 0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue();
+        }
+    return int(sum / (img.width() * (to - from))); // 除以总像素数
 }

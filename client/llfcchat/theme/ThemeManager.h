@@ -67,6 +67,10 @@ private:
     WallpaperLayoutMode _wallpaperMode = WallpaperLayoutMode::Fill;
     int _wallpaperOpacity = 100;
     int _wallpaperScrimAlpha = 0;
+
+    int _toneTitle  = -1;    // 0..255，-1 表示无壁纸/算不出来  ————> 用来计算title_wid处是偏暗还是偏亮，如果偏暗：黑底白字；如果偏亮：白底黑字 保证能够看到对端用户的名字
+    int _toneBody = -1;
+    int computeWallpaperTone(const QString& path, double fromRatio, double toRatio)const;
 };
 
 #endif // LLFC_THEME_MANAGER_H

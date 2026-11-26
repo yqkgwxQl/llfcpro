@@ -25,15 +25,7 @@ int main(int argc, char *argv[])
     ThemeManager::GetInstance()->load();
 
     ThemeManager::GetInstance()->apply();
-
-        // 兜底：万一模板没加进 qrc（buildQss 返回空），至少退回原来的整份 QSS，
-        // 不至于让界面变成"无样式"的裸控件。
-    if (qApp->styleSheet().isEmpty()) {
-        qWarning() << "[theme] 模板缺失，已退回原始 stylesheet.qss（主题不生效）";
-        QFile fallback(":/style/stylesheet.qss");
-        if (fallback.open(QIODevice::ReadOnly))
-            a.setStyleSheet(QString::fromUtf8(fallback.readAll()));
-    }
+    // 模板缺失时 buildQss() 返回空并打 warning，界面退化成系统默认样式（不再另存一份 QSS 兜底）
 
     // ==================== ② 配置：不再依赖 QSS 是否加载成功 ====================
     //这里使用绝对路径
