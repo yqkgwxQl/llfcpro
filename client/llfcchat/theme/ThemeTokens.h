@@ -9,7 +9,7 @@
 // 主题令牌表。
 //   新增一个令牌只需三步：① 本结构体加字段 ② defaultTokens() 给默认值
 //   ③ tokenSlots() 加一行。load/save/buildQss 全部自动覆盖，不用再逐处枚举。
-struct ThemeTokens {
+struct ThemeTokens{
     // —— 底 ——
     QString sideBar;          // 最左侧深色竖栏
     QString bg;               // 页面底色（列表背后）
@@ -43,7 +43,27 @@ struct ThemeTokens {
 // 令牌名 ↔ 结构体字段，加载/保存/替换共用这一张表
 struct TokenSlot {
     const char* key;
-    QString ThemeTokens::*member;
+    QString ThemeTokens::*member; //声明一个名为 member 的变量，它可以指向 ThemeTokens 类中某个类型为 QString 的非静态数据成员。
+    /*即成员指针，和普通指针有所区别
+    一、  写法                     类型                        含义                                 需要对象吗
+        ----------------------   -------------------------   ----------------------------------   ----------------
+        &t.sideBar               QString*                    这个 t 的 sideBar 字段在内存里的地址   ✅ 必须先有 t
+        &ThemeTokens::sideBar    QString ThemeTokens::*      哪个字段——叫 sideBar 的那个          ❌ 不需要
+    二、用一个小例子看清
+        ```
+            struct S { int a; int b; };
+
+            int S::* p = &S::b;    // ✓ 不需要任何 S 对象
+
+            S s1{1, 2};
+            S s2{3, 4};
+            std::cout << s1.*p;    // 2   ← 配上 s1，取到 s1.b
+            std::cout << s2.*p;    // 4   ← 配上 s2，取到 s2.b
+        ```
+        &S::b 只回答"是 b 这个字段"，至于"哪个对象的 b"，要等你用 .* 把对象配上去才知道。
+
+        一个贴切的类比：&S::b 是座位号（"第 2 排 3 号"），不需要有人坐在那儿就能写下来； &s1.b 是某个人当前坐的位置的地址，得先有这个人才行。
+    */
 };
 
 inline const QVector<TokenSlot>& tokenSlots()
@@ -51,7 +71,7 @@ inline const QVector<TokenSlot>& tokenSlots()
     // 注意：变量不能叫 slots —— Qt 把 slots 定义成了宏（Q_SLOTS），会编译报错
     static const QVector<TokenSlot> kTable = {
         // —— 底 ——
-        {"sideBar",          &ThemeTokens::sideBar},
+        {"sideBar",          &ThemeTokens::sideBar},  //这里是成员指针，只记哪个字段
         {"bg",               &ThemeTokens::bg},
         {"surface",          &ThemeTokens::surface},
         {"surfaceAlt",       &ThemeTokens::surfaceAlt},
@@ -143,6 +163,7 @@ inline QVector<QPair<QString, QString>> tokenPairs(const ThemeTokens& t)
     const auto& table = tokenSlots();
     out.reserve(table.size());
     for (const TokenSlot& s : table) {
+        //fromLatin1 的作用是：把一段按 Latin-1 编码解释的 const char* 数据转换成 QString。
         out.append({ QString("@%1@").arg(QString::fromLatin1(s.key)),
                      t.*(s.member) });
     }

@@ -84,6 +84,38 @@ s += "#chat_user_list,#search_list,#con_user_list{background:transparent;}\n";  
 2026-11-26 用这个方法查出并修掉两条：`#forgetLabel`（`.ui` 里实际叫 `forgetLable`）
 和 `#scrollcontent #apply_lb`（实际叫 `apple_lb`），详见 §5.4。
 
+### 1.3 文字颜色用在哪（39 条带文字的规则）
+
+2026-11-27 做了一次全量梳理，并定了一条规矩：**凡是带文字的规则都必须显式写 `color`**，
+不再依赖调色板默认值。梳理前有 8 条规则没写 `color`，其中 5 处本来就是黑底白字场景的误判来源
+（见下面的对比度说明）。
+
+| 令牌 | 默认值 | 用在哪 |
+|---|---|---|
+| `@text@` | `#2e2f30` | 会话标题 `title_lb`、分组标题 `GroupTipItem QLabel`、输入框（`chat_edit` / `name_ed` / `back_ed` / `lb_ed`）、两个标题（`apply_lb` / `friend_apply_lb`）、找好友弹窗的名字 `name_lb`、搜索结果提示 `message_tip`、申请/验证对话框的默认字色 `#ApplyFriend`、取消按钮 `cancel_btn` |
+| `@textMuted@` | `#a2a2a2` | 消息发送者名字 `chat_user_name`、会话摘要 `user_chat_lb`、时间戳 `time_lb`、「已添加」`already_add_lb`、申请表单标签 `#apply_wid QLabel`、`tip_lb` |
+| `@accentText@` | `#2cb46e` | 主操作按钮上的绿字：发送 / 确认（`send_btn` / `sure_btn`）、添加（`addBtn`） |
+| `@textStrong@` | `#1e1e1e` | 登录 / 注册的字段名（`userLabel` / `pwdLabel`）、会话与联系人条目名（`user_name_lb`）、已选 chip、忘记密码常态 |
+| `@onAccent@` | `#ffffff` | 绿底按钮上的白字：加好友 `add_friend_btn` |
+| `@accentTextAlt@` | `#48bf56` | 亮一档的绿字：已选 chip、`FriendLabel` |
+| `@success@` / `@danger@` | `#07c160` / `#fa5151` | `#errTip` 的通过 / 失败 |
+| `rgb(42,112,241)` | 链接蓝 | `#forgetLabel` 悬停（单点色，不入令牌） |
+
+**为什么"要读的文字"一律用 `@text@` 而不是 `@textMuted@`？** 对比度差很多：
+
+| 组合 | 对比度 | WCAG 正文（≥4.5） |
+|---|---|---|
+| `#2e2f30` 在白底 `#ffffff` 上 | **13.41 : 1** | ✅ |
+| `#a2a2a2` 在白底 `#ffffff` 上 | **2.55 : 1** | ❌ |
+| `#a2a2a2` 在面板 `#f0f0f0` 上 | **2.24 : 1** | ❌ |
+
+所以 `@textMuted@` 只留给"扫一眼即可"的时间戳 / 摘要 / 已添加；输入框、标题、名字这些都用 `@text@`。
+
+> **一个很容易漏的坑**：令牌少写结尾的 `@` 就不会被替换。
+> 2026-11-27 在 `#title_wid #title_lb` 上就出现过 `color: @text;`（少一个 `@`）——
+> `buildQss()` 只替换 `@text@`，于是这条声明原样留在 QSS 里，Qt **静默丢弃**，又退回默认黑。
+> 自查方法：搜 `@[A-Za-z]+(?!@)`，或者干脆看 `buildQss()` 的"未定义令牌"警告有没有响。
+
 ---
 
 ## 2. 一个列表条目的绘制顺序（为什么选中色会「消失」）
@@ -397,7 +429,28 @@ scrollArea->viewport()->setAutoFillBackground(false);
 contentWidget->setAutoFillBackground(false);
 ```
 
-（同类问题：`QListWidget` / `QTextEdit` 的 viewport 也各有一份，见 §10 待办。）
+**凡是 `QAbstractScrollArea` 都有这一层**：`QScrollArea` / `QListWidget` / `QTextEdit` 各有一份，
+而且 **QSS 管不到**（viewport 没有 objectName）。判断方法：给它设了 `background: transparent`
+却还是白/灰，就先怀疑 viewport。
+
+2026-11-27 统一处理了一次，**把这件事挪到各自控件的构造函数里**（自包含，谁都不用记得）：
+
+| 控件 | 位置 |
+|---|---|
+| `ChatUserList` | `chatuserlist.cpp` 构造函数 |
+| `ContactUserList` | `contactuserlist.cpp` 构造函数 |
+| `ApplyFriendList` | `applyfriendlist.cpp` 构造函数 |
+| `SearchList` | `searchlist.cpp` 构造函数 |
+| `ChatView` 里的 `QScrollArea` | `chatview.cpp` 构造函数（顺带 `setFrameShape(NoFrame)`） |
+| 申请/验证好友对话框的 `scrollArea` | `applyfriend.cpp` / `authenfriend.cpp` 构造函数（注意这两个 `.ui` 里都叫 `scrollArea`，要改两处） |
+
+> 以前是在 `ChatDialog` 里手动关前两个，结果 `apply_friend_list` 和 `search_list` 被漏掉 ——
+> "新的朋友"页整块白底、壁纸透不出来，就是这么来的。
+> **新加一个列表时，记得在自己的构造函数里补这一行。**
+
+**配套的 QSS 写法**：`#scrollArea` 只留 `border: none`，**不要**再写 `background-color` ——
+那层被 viewport 和内容容器完全覆盖，写了也看不见（真正的 owner 是 `#scrollcontent` / `#chat_bg`）。
+同理 `#ApplyFriend` 里那条 `background` 只在对话框边缘露出，也不是内容区的 owner。
 
 ### 5.4 objectName 拼错一个字母，规则静默失效
 
@@ -554,6 +607,7 @@ QSS 里这 4 处都写了行尾注释，扫到时不必怀疑是漏改。
 | 按面板分别模糊（M3.3） | 现在整张壁纸一个模糊半径；Web 的 `backdrop-filter` 在 Qt 里要自己裁图 + 分级缓存 |
 | `hover` 令牌名字 | 现在只用于「分组标题带 / 搜索无结果提示」这两块浅灰底，历史原因沿用 `hover` 这个名字，没改成 `bandBg`（改了会让旧 `theme.ini` 的键失效） |
 | **「忘记密码」的开关语义** | `forgetLabel` 用 `ClickedLabel`，点一次永久停在 `selected`，所以 §02 里必须保留 `selected` / `selected_hover` 两条兜底（删掉会导致"点击后悬停不再变蓝"）。它应该是**链接**而非可选中控件：改成点完 `ResetNormalState()` 后可精简为两条，见 [改造记录.md](改造记录.md) **BL-32** |
+| **发送者名字随区域变亮变暗**（💤 暂缓） | `#chat_user_name` 现在由 `_toneBody`（壁纸下方 5/6 的**平均值**）统一决定黑/白，覆盖不了"上亮下暗"的壁纸 —— 平均 143 判偏亮，下半部就成了深字压深底。三种方案（A 分档+`[tone=]` 动态属性 / B 衬底或阴影 / C 逐条映射）与取舍见 [改造记录.md](改造记录.md) **BL-33**；2026-11-27 决定暂时搁置 |
 
 ---
 

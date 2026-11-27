@@ -65,35 +65,54 @@ void BackgroundWid::refresh(){
     update();
 }
 
+void BackgroundWid::resizeEvent(QResizeEvent* e){
+    _regionCache.clear();
+    QWidget::resizeEvent(e);
+}
+
 void BackgroundWid::paintEvent(QPaintEvent *event){
 
     QPainter painter(this);
     painter.fillRect(rect(), QColor(ThemeManager::GetInstance()->tokens().bg));
-    if(_source.isNull())
+    if(_source.isNull() || _regions.empty())
         return;
 
-    //拿到new_wallpaper的最终缩放大小
-    QSize fs = finalSize(_mode, _source.size(), size());
+    for(auto& region : _regions){
+        const QRect region_rect = region._rect.intersected(rect());  //intersected 相交
+        const QColor color = ThemeManager::GetInstance()->surfaceColor(region._key);
+        const int alpha = ThemeManager::GetInstance()->surfaceAlpha(region._key);
+        const int blur = ThemeManager::GetInstance()->surfaceBlur(region._key);
+        QPainter painter;
+        painter.save();
+        painter.setClipRect(region_rect);
+        painter.setOpacity((255 - alpha) / 255.0);
+        //这里要对图做模糊处理，同时缓存模糊图
 
-    //进行模糊处理并进行缓存, if blur_radius和wallpaper 和 原先一样，使用原先的模糊缓存，减少CPU计算量
-    const QPixmap pm = cachedBitmap(fs);
-    if(pm.isNull())
-        return;
-    //使用设置的wallpaper_opacity进行绘图
-        //设置画笔的不透明度
-    painter.setOpacity(qBound(0, _opacity, 100) / 100.0);
-        //拿到绘图的位置
-    QPoint point = placement(_mode, pm.size(), size());
-        //进行绘图
-    // painter.drawPixmap(point, _cache);  否则tile只画一张
-    if (_mode == WallpaperLayoutMode::Tile)
-        painter.drawTiledPixmap(rect(), pm);
-    else
-        painter.drawPixmap(point, pm);
-        //恢复画笔不透明度
-    painter.setOpacity(1);
-        // scrim
-    painter.fillRect(rect(), QColor(0, 0, 0, _scrimAlpha));
+        painter.restore();
+    }
+
+    // //拿到new_wallpaper的最终缩放大小
+    // QSize fs = finalSize(_mode, _source.size(), size());
+
+    // //进行模糊处理并进行缓存, if blur_radius和wallpaper 和 原先一样，使用原先的模糊缓存，减少CPU计算量
+    // const QPixmap pm = cachedBitmap(fs);
+    // if(pm.isNull())
+    //     return;
+    // //使用设置的wallpaper_opacity进行绘图
+    //     //设置画笔的不透明度
+    // painter.setOpacity(qBound(0, _opacity, 100) / 100.0);
+    //     //拿到绘图的位置
+    // QPoint point = placement(_mode, pm.size(), size());
+    //     //进行绘图
+    // // painter.drawPixmap(point, _cache);  否则tile只画一张
+    // if (_mode == WallpaperLayoutMode::Tile)
+    //     painter.drawTiledPixmap(rect(), pm);
+    // else
+    //     painter.drawPixmap(point, pm);
+    //     //恢复画笔不透明度
+    // painter.setOpacity(1);
+    //     // scrim
+    // painter.fillRect(rect(), QColor(0, 0, 0, _scrimAlpha));
 
     // qDebug() << "[bg] source_size =" << _source.size() << " widget_size =" << size() << "blur =" << _blur
     //          << " opacity =" << _opacity  << " scrimAlpha=" << _scrimAlpha << " mode =" << int(_mode);
@@ -235,6 +254,7 @@ QImage BackgroundWid::burImage(QImage& src, int blur){
         模糊扩散到 x<0 或 y>300 的部分会被裁掉——这正是我们想要的：我们只要图片那一块，边缘因为模糊变淡是正常现象（壁纸边缘本来也不需要“溢出”）。
 */
 
+    //模糊和缩放处理
 QImage BackgroundWid::renderBitmap(const QImage& src, const QSize& fs, int blur){
     //blur 无效
     if(blur <= 0)

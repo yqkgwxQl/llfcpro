@@ -14,6 +14,10 @@ ChatUserList::ChatUserList(QWidget *parent)
     connect(this, &QListWidget::itemClicked, this, &ChatUserList::slot_item_clicked);
     this->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // 关掉 viewport 用调色板 Base 刷的白底：QSS 管不到 viewport（它没有 objectName），
+    // 不关的话壁纸模式下 #chat_user_list 设成 transparent 也会被这层白盖住。
+    // 放在自己的构造里 = 自包含，谁都不用记得（以前是在 ChatDialog 里手动关的）。
+    this->viewport()->setAutoFillBackground(false);
     //安装事件过滤器
     this->viewport()->installEventFilter(this);
 }

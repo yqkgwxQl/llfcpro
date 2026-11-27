@@ -18,6 +18,9 @@ SearchList::SearchList(QWidget *parent)
     Q_UNUSED(parent);
     this->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // 关掉 viewport 的白底（QSS 管不到 viewport），否则壁纸模式下 #search_list
+    // 设成 transparent 也会被这层白盖住。自包含：由列表自己负责，不依赖调用方。
+    this->viewport()->setAutoFillBackground(false);
     //设置过滤器
     this->viewport()->installEventFilter(this);
     //连接点击的信号和槽

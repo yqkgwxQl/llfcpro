@@ -44,6 +44,9 @@ AuthenFriend::AuthenFriend(QWidget *parent)
 
     ui->scrollArea->horizontalScrollBar()->setHidden(true);
     ui->scrollArea->verticalScrollBar()->setHidden(true);
+    // 关掉 viewport 用调色板 Base 刷的白底（QSS 管不到 viewport，它没有 objectName）：
+    // 内容比视口矮时会露出白边，底色该由 #scrollcontent 的 @bg@ 提供。
+    ui->scrollArea->viewport()->setAutoFillBackground(false);
     ui->scrollArea->installEventFilter(this);
     ui->sure_btn->SetState("normal","hover","press");
     ui->cancel_btn->SetState("normal","hover","press");

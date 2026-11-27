@@ -18,6 +18,9 @@ ContactUserList::ContactUserList(QWidget *parent)
     Q_UNUSED(parent);
     this->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // 关掉 viewport 的白底（QSS 管不到 viewport），否则壁纸模式下 #con_user_list
+    // 设成 transparent 也会被这层白盖住。自包含：由列表自己负责，不依赖调用方。
+    this->viewport()->setAutoFillBackground(false);
     // 安装事件过滤器
     this->viewport()->installEventFilter(this);
 
@@ -50,7 +53,6 @@ void ContactUserList::addContactUserList()
     item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
 
     _add_friend_item = new ConUserItem();
-    _add_friend_item->setObjectName("new_friend_item");
     _add_friend_item->SetInfo(0,tr("新的朋友"),":/res/add_friend.png");
     _add_friend_item->SetItemType(ListItemType::APPLY_FRIEND_ITEM);
 
@@ -59,9 +61,6 @@ void ContactUserList::addContactUserList()
     add_item->setSizeHint(_add_friend_item->sizeHint());
     this->addItem(add_item);
     this->setItemWidget(add_item, _add_friend_item);
-
-    //默认设置新的朋友申请条目被选中
-    this->setCurrentItem(add_item);
 
     auto * groupCon = new GroupTipItem();
     groupCon->SetGroupTip(tr("联系人"));
@@ -79,6 +78,7 @@ void ContactUserList::addContactUserList()
         int name_i = randomValue%names.size();
 
         auto *con_user_wid = new ConUserItem();
+        con_user_wid->setObjectName("con_user_item");
         con_user_wid->SetInfo(0,names[name_i], heads[head_i]);
         QListWidgetItem *item = new QListWidgetItem;
         //qDebug()<<"chat_user_wid sizeHint is " << chat_user_wid->sizeHint();

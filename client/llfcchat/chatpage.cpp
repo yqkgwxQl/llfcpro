@@ -23,13 +23,12 @@ ChatPage::ChatPage(QWidget *parent)
     , ui(new Ui::ChatPage)
 {
     ui->setupUi(this);
+
     //设置按钮样式
     ui->send_btn->SetState("normal","hover","press");
     //设置图标样式
     ui->emo_lb->SetState("normal","hover","press","normal","hover","press");
     ui->file_lb->SetState("normal","hover","press","normal","hover","press");
-    // ChatPage 构造函数里加一行 (但是不需要，qt6中即是不重写QWidget的paintEvent，对于一些qss属性也是生效的）
-    // ui->tool_wid->setStyleSheet("background:#ffffff; border-bottom:0.5px solid #ececec;");
 
     // 连接 Enter 发送信号
     connect(ui->chat_edit, &MessageTextEdit::send, this, &ChatPage::on_send_btn_clicked);

@@ -6,6 +6,7 @@
 ApplyFriendList::ApplyFriendList(QWidget *parent):QListWidget(parent){
     this->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     this->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    this->viewport()->setAutoFillBackground(false);
     // 安装事件过滤器
     this->viewport()->installEventFilter(this);
 }

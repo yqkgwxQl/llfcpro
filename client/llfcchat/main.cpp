@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     ThemeManager::GetInstance()->load();
 
     ThemeManager::GetInstance()->apply();
-    // 模板缺失时 buildQss() 返回空并打 warning，界面退化成系统默认样式（不再另存一份 QSS 兜底）
+    QObject::connect(ThemeManager::GetInstance().get(), &ThemeManager::sigChanged, qApp, []{ ThemeManager::GetInstance()->apply(); });
 
     // ==================== ② 配置：不再依赖 QSS 是否加载成功 ====================
     //这里使用绝对路径

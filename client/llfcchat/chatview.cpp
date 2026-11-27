@@ -15,12 +15,17 @@ ChatView::ChatView(QWidget* parent)
 
     _m_pScrollArea = new QScrollArea();
     _m_pScrollArea->setObjectName("chat_area");
+    _m_pScrollArea->setFrameShape(QFrame::NoFrame);            // 取代 QSS 的 border: none
+    _m_pScrollArea->viewport()->setAutoFillBackground(false);  // 关掉那层 QSS 管不到的白底
+
     pMainLayout->addWidget(_m_pScrollArea);
 
     QWidget* w = new QWidget(this);
     w->setObjectName("chat_bg");
     w->setAutoFillBackground(false);
-    //QScrollArea 的 viewport 默认也会用自己的调色板 Base（白色）填背景。所以即使 QSS 写了 #chat_bg{background:transparent;}，聊天区仍然是白的。
+    // viewport 默认用调色板 Base 刷白底，而 QSS 管不到它（它没有 objectName），
+    // 必须靠上面第 19 行的 setAutoFillBackground(false) 关掉；
+    // 否则壁纸模式下 #chat_bg 设成 transparent 也会被这层白底盖住。
 
     QVBoxLayout* pVLayout_1 = new QVBoxLayout();
     pVLayout_1->addWidget(new QWidget(),100000);

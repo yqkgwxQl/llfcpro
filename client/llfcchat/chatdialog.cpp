@@ -24,9 +24,8 @@ ChatDialog::ChatDialog(QWidget *parent)
     ui->search_edit->SetMaxLength(15);
     ui->search_edit->setPlaceholderText(QStringLiteral("搜索"));  //QStringLiteral : 编译时就生成好 QString 所需的内部数据，运行时零开销
 
-    ui->chat_user_list->viewport()->setAutoFillBackground(false);
-    ui->con_user_list->viewport()->setAutoFillBackground(false);
-    ui->search_list->setAutoFillBackground(false);
+    // 注意：三个列表的 viewport 白底已挪到各自的构造函数里关闭（ChatUserList /
+    // ContactUserList / SearchList），这里不再重复设置 —— 谁拥有列表谁负责。
 
     ShowSearch(false);
     //连接加载信号和槽

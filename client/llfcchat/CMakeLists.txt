@@ -81,6 +81,10 @@ qt_add_executable(llfcchat
 
 )
 
+# 非 void 函数漏写 return 属于 UB（-O2 下表现为「随机崩溃」），升级为编译错误。
+# 与服务端 ChatServer 的同类配置保持一致（见 AGENTS.md 第三节）。
+target_compile_options(llfcchat PRIVATE -Werror=return-type)
+
 target_link_libraries(llfcchat
     PRIVATE
         Qt::Core

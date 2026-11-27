@@ -23,6 +23,19 @@
      4. 颜色只写 @token@。确实无法令牌化的单点色，行尾注明原因。
      5. 每条规则上方最多一行注释；长讲解搬到 docs/QSS笔记.md。
      6. 格式：4 空格缩进，[state='normal'] 不带空格，冒号后一个空格。
+     7. **带文字的规则必须显式写 color**，不许留空让调色板兜底 —— 留空时显示的是
+         系统默认黑，既看不出意图、也不会随主题变。新增规则时按下表选令牌。
+
+   文字颜色规范（39 条带文字的规则已全部显式标注，逐条明细见 docs/QSS笔记.md §1.3）
+     用途                                      令牌                  默认值
+     正文 / 标题 / 输入框 / 普通按钮字           @text@                #2e2f30
+     需要强调的名字与字段标签                    @textStrong@          #1e1e1e
+     次要信息（时间 / 摘要 / 已添加 / 表单标签）  @textMuted@           #a2a2a2
+     主操作按钮上的绿字                          @accentText@          #2cb46e
+     亮一档的绿字（已选 chip / FriendLabel）     @accentTextAlt@       #48bf56
+     绿底按钮上的白字                            @onAccent@            #ffffff
+     校验提示 通过 / 失败                        @success@ / @danger@  #07c160 / #fa5151
+     单点色（不入令牌）：#forgetLabel 悬停的链接蓝 rgb(42,112,241)
 
    令牌速查（全集与默认值见 theme/ThemeTokens.h）
      底  sideBar #2e2e2e  bg #f7f7f8  surface #ffffff  surfaceAlt #f0f0f0
@@ -102,7 +115,7 @@ QScrollBar::sub-line:vertical {
 
 QScrollBar::add-page:vertical,
 QScrollBar::sub-page:vertical {
-    background: none;           /* 没有显示这两个组件，但是这两个组件是透明的，仍然可以进行使用*/ 
+    background: none;           /* 没有显示这两个组件，但是这两个组件是透明的，仍然可以进行使用*/
 }
 
         /* 用于测试++++++++++++
@@ -230,7 +243,7 @@ QScrollBar::sub-line:vertical  { background-color: yellow; height: 8px; } */
 
 /* 忘记密码：常态深字，悬停变链接蓝（链接蓝为单点色，未入令牌）
    objectName 是 forgetLabel（.ui 里曾误拼成 forgetLable，2026-11-26 已统一改正） */
-   
+
    /*forgetLabel应该是链接，而非可选中的label，以后进行处理 */
 #forgetLabel[state='normal'],
 #forgetLabel[state='selected'] {
@@ -339,6 +352,9 @@ QScrollBar::sub-line:vertical  { background-color: yellow; height: 8px; } */
     outline: none;
 }
 
+ ConUserItem #con_user_item {
+    border-bottom:1px solid @border@;
+}
 
 /* ==========================================================================
    §04  会话列表页           chatpage.ui
@@ -346,22 +362,28 @@ QScrollBar::sub-line:vertical  { background-color: yellow; height: 8px; } */
 
 /* 顶部标题 */
 #title_wid #title_lb {
-    color: @text;  
+    color: @text@;
     font-family: "Microsoft YaHei";
     font-size: 18px;
     font-weight: normal;
 }
 
-/* 聊天区：chat_area 是 QScrollArea，chat_bg 是它里面的白底容器 */
-#chat_area{
+/* 聊天区：chat_area 是 QScrollArea；chat_bg 只是滚动内容画布，不再铺色 */
+/* #chat_area{
     border: none;
-}
+} */
 
-#chat_bg {
+/* 聊天页根：整页底色（页边距、控件间隙、divider 都归它） */
+#chat_page {
     background-color: @surfaceAlt@;
 }
 
-/* 消息列表：条目之间的缝隙透明，底色由 #chat_bg 提供（原为 black 死色） */
+/* 消息区画布：只承载气泡，本身透明 —— 底色由 #chat_page 提供 */
+#chat_bg {
+    background-color: transparent;
+}
+
+/* 消息列表：条目之间的缝隙透明，底色来自 #chat_page */
 #chat_data_list {
     background-color: transparent;
 }
@@ -407,6 +429,7 @@ QScrollBar::sub-line:vertical  { background-color: yellow; height: 8px; } */
 
 /* 输入框与发送按钮容器 */
 #chat_data_wid #chat_edit {
+    color: @text@;
     background-color: @surface@;
     border: none;
     font-family: "Microsoft YaHei";
@@ -419,6 +442,14 @@ QScrollBar::sub-line:vertical  { background-color: yellow; height: 8px; } */
     border: none;
 }
 
+/* 用户列表和chat_data_wid之间有一条线 */
+/* #chat_data_wid {
+    border-left:3px solid @border@;
+}   ————> 没有效果，只有title这一最顶部的栏目有一条3px的线 ： 子控件挡住了它*/
+    /* therefore : 想让这条线贯穿整个聊天区，必须画在"真正铺满"的子控件上 */
+#chat_divider_wid #chat_divider_lb {
+    background-color:@borderLight@;
+}
 /* 发送 / 接收按钮 → 见 §01.2 胶囊按钮 A 组 */
 
 
@@ -501,6 +532,7 @@ AddUserItem #right_tip {
 
 /* 条目中间的结果文字（12pt ≈ 16px@96dpi，沿用 pt 以免高 DPI 下变形） */
 AddUserItem #message_tip {
+    color: @text@;
     text-align: center;
     font-family: "Microsoft YaHei";
     font-size: 12pt;
@@ -571,16 +603,18 @@ ApplyFriendItem #already_add_lb {
    ========================================================================== */
 
 #friend_apply_wid #friend_apply_lb {
+    color: @text@;
+    background-color: @surfaceAlt@;
     font-family: "Microsoft YaHei";
     font-size: 18px;
     font-weight: normal;
 }
 
 /* 顶部标题带 */
-#friend_apply_wid {
+/* #friend_apply_wid {
     background-color: @surfaceAlt@;
     border-bottom: 1px solid @borderLight@;
-}
+} */
 
 /* 申请列表容器：左侧一条细分隔线，其余边不要 */
 ApplyFriendPage #apply_friend_list {
@@ -592,9 +626,9 @@ ApplyFriendPage #apply_friend_list {
 }
 
 /* 每个条目之间的分隔线 */
-#new_friend_item {
-    border-bottom: 1px solid @borderLight@;
-}
+/* #new_friend_item {
+    border-bottom: 2px solid @borderLight@;
+} */
 
 
 /* ==========================================================================
@@ -606,6 +640,7 @@ ApplyFriendPage #apply_friend_list {
 }
 
 FindSuccessDlg #name_lb {
+    color: @text@;
     font-size: 14px;
     font-family: "Microsoft YaHei";
 }
@@ -643,14 +678,17 @@ FindSuccessDlg #add_friend_btn[state='press'] {
 
 /* 对话框外壳 */
 #ApplyFriend {
+    color: @text@;
     border: 2px solid @border@;
     font-size: 14px;
     background-color: @bg@;
 }
 
-/* 滚动区与内容容器 */
+/* 滚动区与内容容器
+   底色只由 #scrollcontent 决定；#scrollArea 只负责去掉 QSS 默认边框。
+   它上面的 background-color 原本就看不到（被 viewport 和 scrollcontent 完全覆盖），
+   viewport 的白底已在 applyfriend.cpp / authenfriend.cpp 里关掉。 */
 #scrollArea {
-    background-color: @bg@;
     border: none;
 }
 
@@ -659,6 +697,7 @@ FindSuccessDlg #add_friend_btn[state='press'] {
 }
 
 #scrollcontent #apply_lb {
+    color: @text@;
     font-family: "Microsoft YaHei";
     font-size: 16px;
     font-weight: normal;
@@ -675,6 +714,7 @@ FindSuccessDlg #add_friend_btn[state='press'] {
 /* 输入框：边框与页面底色同色，看起来「无边框」 */
 #apply_wid #name_ed,
 #apply_wid #back_ed {
+    color: @text@;
     border: 1px solid @bg@;
     font-size: 14px;
     font-family: "Microsoft YaHei";
@@ -682,6 +722,7 @@ FindSuccessDlg #add_friend_btn[state='press'] {
 
 /* 「验证消息」多行框：真无边框 */
 #apply_wid #lb_ed {
+    color: @text@;
     border: none;
     font-size: 14px;
     font-family: "Microsoft YaHei";

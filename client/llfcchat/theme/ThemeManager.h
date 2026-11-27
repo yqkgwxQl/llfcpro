@@ -3,25 +3,27 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
+#include <QVector>
+#include <QHash>
 #include <QColor>
-
 #include "singleton.h"
 #include "ThemeTokens.h"
 
 // 主题管理器：负责"令牌 → QSS 字符串 → 应用到整个应用"
-// 单例来自项目里的 Singleton<T>，用法与 TcpMgr / HttpMgr 一致：
-//     ThemeManager::GetInstance()->load();
+
+struct SurfaceSpec {
+    QString     key;        // "list" / "chat" / "input" ... ————> 配置的每一组的名字
+    QStringList selectors;  // 对应的 QSS 选择器
+    QString     colorToken; // "surface" / "bg" / "sideBar" ————> 底色从哪个令牌取
+    int         alpha;      // 0~255
+    int         blur;
+};
+
 class ThemeManager : public QObject, public Singleton<ThemeManager>
 {
     Q_OBJECT
     friend class Singleton<ThemeManager>;
-
-    struct SurfaceSpec {
-        QString     key;        // "list" / "chat" / "input" ... ————> 配置的每一组的名字
-        QStringList selectors;  // 对应的 QSS 选择器
-        QString     colorToken; // "surface" / "bg" / "sideBar" ————> 底色从哪个令牌取
-        int         alpha;      // 0~255
-    };
 public:
     ~ThemeManager() = default;
 
@@ -52,6 +54,13 @@ public:
 
     //如果有壁纸的话，让一些组件变透明，防止壁纸看不见
     QString wallpaperOverride()const;
+    int  surfaceAlpha(const QString& key) const;   // 没设置过 → 表里的默认值
+    void setSurfaceAlpha(const QString& key, int alpha);
+    int surfaceBlur(const QString& key) const;
+    void setSurfaceBlur(const QString& key, int blur);
+    QColor surfaceColor(const QString& key) const;
+    void setSurfaceBlur(const QString& key, const QColor& color);
+    QStringList surfaceKeys() const;               // 给设置界面遍历用
 signals:
     void sigChanged();  // 壁纸层 监听它重绘
 
@@ -70,7 +79,12 @@ private:
 
     int _toneTitle  = -1;    // 0..255，-1 表示无壁纸/算不出来  ————> 用来计算title_wid处是偏暗还是偏亮，如果偏暗：黑底白字；如果偏亮：白底黑字 保证能够看到对端用户的名字
     int _toneBody = -1;
-    int computeWallpaperTone(const QString& path, double fromRatio, double toRatio)const;
+    QImage getScaledImage(const QString& path, QSize size)const;
+    int computeWallpaperTone(const QImage& img, double fromRatio, double toRatio)const;
+
+    QHash<QString, int> _surfaceAlphas;
+    QHash<QString, int> _surfaceBlurs;
+    QString resolveSurfaceColor(const QString& token)const;
 };
 
 #endif // LLFC_THEME_MANAGER_H
