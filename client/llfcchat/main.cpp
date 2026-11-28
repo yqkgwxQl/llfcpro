@@ -15,8 +15,9 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     Logger::GetInstance();
 
-    QCoreApplication::setOrganizationName("llfc");
-    QCoreApplication::setApplicationName("llfcchat");   //%APPDATA%\llfc\llfcchat
+    //C:\Users\<用户名>\AppData\Local\<组织名>\<应用名>    C:/Users/<用户>/AppData/Local/llfc/llfcchat
+    QCoreApplication::setOrganizationName("llfc");  //<组织名>
+    QCoreApplication::setApplicationName("llfcchat");   //<应用名>
     // ==================== ① 主题：先加载，再应用 ====================
     // load()  ：读 %APPDATA%/.../theme.ini；文件不存在或键缺失 → 用 defaultTokens()
     // apply() ：把 @token@ 替换成真实颜色，然后 qApp->setStyleSheet(...)

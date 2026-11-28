@@ -13,6 +13,7 @@
 #include "conuseritem.h"
 #include "theme/backgroundwid.h"
 #include "theme/ThemeManager.h"
+#include <QVector>
 
 // #include "customizeedit.h"
 
@@ -38,11 +39,16 @@ ChatDialog::ChatDialog(QWidget *parent)
     ui->side_head_lb->setScaledContents(true); // 告诉 QLabel，以后不管 label 尺寸怎么变，图片自动跟着拉伸填满。
     ui->side_chat_lb->setState("normal","hover","pressed","selected_normal","selected_hover","selected_pressed");
     ui->side_contact_lb->setState("normal","hover","pressed","selected_normal","selected_hover","selected_pressed");
+    ui->side_setting_lb->setState("normal","hover","pressed","selected_normal","selected_hover","selected_pressed");
 
     addLBGroup(ui->side_chat_lb);
     addLBGroup(ui->side_contact_lb);
     connect(ui->side_chat_lb, &StateWidget::clicked, this, &ChatDialog::slot_side_chat);
     connect(ui->side_contact_lb, &StateWidget::clicked, this, &ChatDialog::slot_side_contact);
+    connect(ui->side_setting_lb, &StateWidget::clicked, this, [this](){
+        qDebug() << "[ui] settings clicked";
+        // TODO(M5): 打开设置对话框（每个区域的 tintAlpha / wpAlpha / blur、主题色）
+    });
 
     connect(ui->search_edit,&QLineEdit::textChanged,this,&ChatDialog::slot_text_changed);
     //为searchlist 设置search edit
@@ -54,6 +60,12 @@ ChatDialog::ChatDialog(QWidget *parent)
     //关于壁纸
     _bg = new BackgroundWid(this);  //这个是我们自己创建的组件，并未加入原布局里  therefore，必须rect()拿到位置和大小，然后进行设置，才能加入原布局里
     _bg->setGeometry(rect());   // 和父窗口一样大，铺满整个 ChatDialog
+    _bg->setRegions({
+         {"sideBar", regionRect(this, ui->side_bar)},
+         {"list",    regionRect(this, ui->chat_user_wid)},
+         {"chat",    regionRect(this, ui->stackedWidget)},
+     });
+
     _bg->lower();               //把壁纸沉到所有兄弟控件的最下面
     _bg->refresh();
 
@@ -319,10 +331,9 @@ bool ChatDialog::eventFilter(QObject *watched, QEvent *event){
 
 void ChatDialog::resizeEvent(QResizeEvent *event){
     QDialog::resizeEvent(event);
-    if (_bg) {
-        _bg->setGeometry(rect());
-        _bg->lower();
-    }
+    updateBackgroundRegions();
+    _bg->setGeometry(rect());
+    _bg->lower();
 }
 
 void ChatDialog::ShowSearch(bool bsearch){
@@ -519,6 +530,10 @@ void ChatDialog::addChatUserList(){
     }
 }
 
+void ChatDialog::addLBGroup(StateWidget * state_widget){
+    _lb_list.push_back(state_widget);
+}
+
 void ChatDialog::clearLabelState(StateWidget *cur_state_widget){
     for(auto& state_widget:_lb_list){
         if(state_widget == cur_state_widget)
@@ -527,7 +542,15 @@ void ChatDialog::clearLabelState(StateWidget *cur_state_widget){
     }
 }
 
-void ChatDialog::addLBGroup(StateWidget * state_widget){
-    _lb_list.push_back(state_widget);
-}
 //-----------------用于测试chat_user_wid----------------------------
+
+void ChatDialog::updateBackgroundRegions(){
+    if (!_bg)
+        return;
+    _bg->updateBackgroundRegions({
+      {"sideBar", regionRect(this, ui->side_bar)},
+      {"list",    regionRect(this, ui->chat_user_wid)},
+      {"chat",    regionRect(this, ui->stackedWidget)},
+  });
+    return;
+}

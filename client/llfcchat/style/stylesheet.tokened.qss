@@ -297,6 +297,27 @@ QScrollBar::sub-line:vertical  { background-color: yellow; height: 8px; } */
     border-image: url(:/res/contact_list_press.png);
 }
 
+/* 侧栏导航 · 设置 */
+#side_bar #side_setting_lb[state='normal'] {
+    border-image: url(:/res/settings.png);
+}
+
+#side_bar #side_setting_lb[state='hover'] {
+    border-image: url(:/res/settings_hover.png);
+}
+
+#side_bar #side_setting_lb[state='pressed'],
+#side_bar #side_setting_lb[state='selected_normal'] {
+    border-image: url(:/res/settings_press.png);
+}
+
+#side_bar #side_setting_lb[state='selected_hover']{
+    border-image: url(:/res/settings_select_hover.png);
+}
+#side_bar #side_setting_lb[state='selected_pressed'] {
+    border-image: url(:/res/contact_select_press.png);
+}
+
 /* 侧栏「加好友」按钮 */
 #search_wid #add_btn[state='normal'] {
     border-image: url(:/res/add_friend_normal.png);
@@ -352,7 +373,11 @@ QScrollBar::sub-line:vertical  { background-color: yellow; height: 8px; } */
     outline: none;
 }
 
+ /* 在 ConUserItem 的**子孙**里，找 objectName 为 con_user_item 的控件。
  ConUserItem #con_user_item {
+    border-bottom:1px solid @border@;
+} */
+ConUserItem#con_user_item {
     border-bottom:1px solid @border@;
 }
 

@@ -8,6 +8,7 @@
 #include <QtNetwork/QNetworkReply>
 
 extern std::function<void(QWidget*)> repolish;
+QRect regionRect(QWidget* parent, QWidget* w);
 extern QString gate_url_prefix;
 extern std::function<QString(QString)> xorString;
 
@@ -172,6 +173,7 @@ enum class WallpaperLayoutMode{Fill = 0,
                   Center,
                   Tile,
               };
+
 //申请好友标签输入框最低长度 mix_apply_label_ed_len
 const int MIN_APPLY_LABEL_ED_LEN = 40;
 

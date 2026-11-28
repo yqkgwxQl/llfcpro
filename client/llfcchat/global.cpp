@@ -10,6 +10,11 @@ std::function<void(QWidget*)> repolish = [](QWidget* w){
     w->style()->polish(w);// 第二步：重新应用新样式  polish() 的作用是对控件进行“打磨”，执行与样式相关的初始化设置和属性调整。它会重新检查控件当前的状态和属性，并应用对应的 QSS 样式
 };
 
+//获取组件w在父界面parent的精确rect
+QRect regionRect(QWidget* parent, QWidget* w) {
+    return QRect(w->mapTo(parent, QPoint(0, 0)), w->size());
+};
+
 std::function<QString(QString)> xorString = [](QString input){
     /*string.size()和string.length()的区别:
     1.length()：对于字符串而言，“长度”是一个非常自然和直观的概念，提供此函数是为了提高代码的语义可读性1。

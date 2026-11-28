@@ -13,36 +13,18 @@ BackgroundWid::BackgroundWid(QWidget* parent)
     this->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 }
 
-void BackgroundWid::SetImagePath(const QString& path){
-    _source = QImage(path);
-    _source_path = path;
-    _blurDirty = true;
-    update();
-}
-
-void BackgroundWid::SetOpacity(int percent){
-    _opacity = qBound(0, percent, 100);
-    update();
-}
-
-void BackgroundWid::SetBlurRadius(int redius){
-    _blur = redius;
-    update();
-}
-
-void BackgroundWid::SetLayoutMode(WallpaperLayoutMode mode){
-    _mode = mode;
-    update();
-}
-
+//这里其实是专门加载壁纸的，原生的除壁纸之外的内容主要是通过qss进行加载的
 void BackgroundWid::refresh(){
+
     const QString wallpaper_path = ThemeManager::GetInstance()->wallpaperPath();
+    const bool pathChanged = (_source_path != wallpaper_path);
+
     if(wallpaper_path.isEmpty())
         _source = QImage(); //空image
     // //如果源图为空，即没有设置壁纸 **或者** 原图壁纸和wallpaper_path不一样，即更新壁纸
     else if(_source.isNull() || _source_path != wallpaper_path){
         QImage img(wallpaper_path);
-        if (!img.isNull()) {
+        if (!img.isNull()){
             // 大图先缩到屏幕尺寸以内，避免常驻几十 MB
             const QSize screen = QGuiApplication::primaryScreen()->size();
             if (img.width() > screen.width() || img.height() > screen.height())
@@ -52,70 +34,101 @@ void BackgroundWid::refresh(){
         }
     }
 
-    const int newBlur = ThemeManager::GetInstance()->wallpaperBlur();
     const WallpaperLayoutMode newMode = ThemeManager::GetInstance()->wallpaperMode();
-    if (newBlur != _blur || newMode != _mode)
-        _blurDirty = true;
+    //清理缓存
+    const QString bg = ThemeManager::GetInstance()->tokens().bg;
+    if(pathChanged || _mode != newMode || _cacheBg != bg) {
+        _canvaCaches.clear();
+        _cacheBg = bg;
+    }
 
-    _blur = ThemeManager::GetInstance()->wallpaperBlur();
-    _mode = ThemeManager::GetInstance()->wallpaperMode();
-    _opacity = ThemeManager::GetInstance()->wallpaperOpacity();
-    _scrimAlpha = ThemeManager::GetInstance()->wallpaperScrimAlpha();
+    _mode = newMode;
 
     update();
 }
 
+void BackgroundWid::setRegions(const QVector<BackgroundRegion>& regions){
+    _regions = regions;
+    _canvaCaches.clear();
+    update();
+}
+
+void BackgroundWid::removeBackgroundRegions(const QVector<BackgroundRegion>& regions){
+    for (const auto& region : regions) {
+        for (int i = _regions.size() - 1; i >= 0; --i) {
+            if (_regions.at(i)._key == region._key) {
+                _regions.removeAt(i);
+            }
+        }
+    }
+    update();
+}
+
+void BackgroundWid::addBackgroundRegions(const QVector<BackgroundRegion>& regions){
+    for(const auto& region : regions){
+        bool has = false;
+        for(const auto& r : _regions){
+            if(region._key == r._key)
+                has = true;
+        }
+        if(!has)
+            _regions.push_back(region);
+    }
+    update();
+}
+
+void BackgroundWid::updateBackgroundRegions(const QVector<BackgroundRegion>& regions){
+    for(const auto& region : regions){
+        bool found = false;
+        for(auto& r : _regions){
+            if(region._key == r._key){
+                found = true;
+                r._rect = region._rect;
+            }
+        }
+    if(!found)
+        _regions.push_back(region);
+    }
+    update();   //将来在不改变 _bg 尺寸的情况下调用（比如侧栏宽度调整、主题切换后重算区域）
+}
+
 void BackgroundWid::resizeEvent(QResizeEvent* e){
-    _regionCache.clear();
+    _canvaCaches.clear();
     QWidget::resizeEvent(e);
 }
 
 void BackgroundWid::paintEvent(QPaintEvent *event){
 
     QPainter painter(this);
-    painter.fillRect(rect(), QColor(ThemeManager::GetInstance()->tokens().bg));
     if(_source.isNull() || _regions.empty())
         return;
 
     for(auto& region : _regions){
         const QRect region_rect = region._rect.intersected(rect());  //intersected 相交
         const QColor color = ThemeManager::GetInstance()->surfaceColor(region._key);
-        const int alpha = ThemeManager::GetInstance()->surfaceAlpha(region._key);
-        const int blur = ThemeManager::GetInstance()->surfaceBlur(region._key);
-        QPainter painter;
-        painter.save();
-        painter.setClipRect(region_rect);
-        painter.setOpacity((255 - alpha) / 255.0);
-        //这里要对图做模糊处理，同时缓存模糊图
+        const int realWpAlpha = ThemeManager::GetInstance()->realRegionWpAlpha(region._key);
+        const int tintAlpha = ThemeManager::GetInstance()->surfaceTintAlpha(region._key);
+        int blur = ThemeManager::GetInstance()->surfaceBlur(region._key);
+        if(blur < 0)
+            blur = ThemeManager::GetInstance()->wallpaperBlur();
 
+        const QPixmap canva = canvaPixmap(blur);
+
+        painter.save();
+        // ① 底色（主题 bg）——壁纸半透明时，透出来的就是它
+        painter.fillRect(region_rect, color);
+        painter.setOpacity(realWpAlpha / 255.0);
+        //② 这里要对图做模糊处理，同时缓存模糊图; 然后将对应的模糊图画到指定region
+        painter.drawPixmap(region_rect, canva, region_rect);
+        //painter.drawPixmap(rect1, pixmap, rect2) ————> 从 pixmap 的 rect2 区域取出一块图像，然后绘制到当前绘图设备上的 rect1 区域。rect1和rect2大小不同会进行缩放
+        painter.setOpacity(1);
+        // ③ 遮罩色，按自己的强度
+        QColor mask = color;
+        mask.setAlpha(tintAlpha);
+        painter.fillRect(region_rect, mask);
         painter.restore();
     }
 
-    // //拿到new_wallpaper的最终缩放大小
-    // QSize fs = finalSize(_mode, _source.size(), size());
-
-    // //进行模糊处理并进行缓存, if blur_radius和wallpaper 和 原先一样，使用原先的模糊缓存，减少CPU计算量
-    // const QPixmap pm = cachedBitmap(fs);
-    // if(pm.isNull())
-    //     return;
-    // //使用设置的wallpaper_opacity进行绘图
-    //     //设置画笔的不透明度
-    // painter.setOpacity(qBound(0, _opacity, 100) / 100.0);
-    //     //拿到绘图的位置
-    // QPoint point = placement(_mode, pm.size(), size());
-    //     //进行绘图
-    // // painter.drawPixmap(point, _cache);  否则tile只画一张
-    // if (_mode == WallpaperLayoutMode::Tile)
-    //     painter.drawTiledPixmap(rect(), pm);
-    // else
-    //     painter.drawPixmap(point, pm);
-    //     //恢复画笔不透明度
-    // painter.setOpacity(1);
-    //     // scrim
-    // painter.fillRect(rect(), QColor(0, 0, 0, _scrimAlpha));
-
-    // qDebug() << "[bg] source_size =" << _source.size() << " widget_size =" << size() << "blur =" << _blur
-    //          << " opacity =" << _opacity  << " scrimAlpha=" << _scrimAlpha << " mode =" << int(_mode);
 }
 
 QSize BackgroundWid::finalSize(WallpaperLayoutMode mode, const QSize& src, const QSize& target){
@@ -254,33 +267,39 @@ QImage BackgroundWid::burImage(QImage& src, int blur){
         模糊扩散到 x<0 或 y>300 的部分会被裁掉——这正是我们想要的：我们只要图片那一块，边缘因为模糊变淡是正常现象（壁纸边缘本来也不需要“溢出”）。
 */
 
-    //模糊和缩放处理
-QImage BackgroundWid::renderBitmap(const QImage& src, const QSize& fs, int blur){
-    //blur 无效
-    if(blur <= 0)
-        return src.scaled(fs, Qt::IgnoreAspectRatio, Qt::SmoothTransformation); //此时的fs已经是最终尺寸，它只负责精确缩放到这个尺寸 ————> 关于要不要保持长宽比，refresh前面已经做了决定了
-    //先缩小图片然后模糊，这样消耗CPU资源少；同时保证不要太小：最低8*8的像素
-    QSize small = QSize(qMax(8, fs.width()/8), qMax(8, fs.height()/8));
-    QImage tiny = src.scaled(small, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    tiny = burImage(tiny, blur);    // 模糊处理函数
-    return tiny.scaled(fs, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+
+QPixmap BackgroundWid::canvaPixmap(int blur){
+    auto it = _canvaCaches.find(blur);
+    if (it != _canvaCaches.end() && it.value().size() == size())
+        return it.value();
+
+    const QSize target_size = finalSize(_mode, _source.size(), size());
+    const QPoint place = placement(_mode, target_size, size()); //不同的mode可能有不同的size，所以size()和target_size是不一样的，eg:Fill和Fit可能会比size()大、小
+
+    QImage canva(size(), QImage::Format_ARGB32_Premultiplied);
+    canva.fill(QColor(ThemeManager::GetInstance()->tokens().bg));
+
+    QPainter canvas_painter(&canva);
+    const QImage scaled_image = _source.scaled(target_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    if (_mode == WallpaperLayoutMode::Tile)
+        canvas_painter.drawTiledPixmap(rect(), QPixmap::fromImage(scaled_image));
+    else
+        canvas_painter.drawImage(place, scaled_image);          // pt 可能为负（Fill/Center 超出控件）
+    canvas_painter.end();
+
+    QImage out = canva;
+    if (blur > 0) {
+        // 先缩到 1/8 再模糊，最后放大 —— 和 renderBitmap 同一套思路
+        const QSize small(qMax(8, size().width()/8), qMax(8, size().height()/8));
+        QImage tiny = canva.scaled(small, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        tiny = burImage(tiny, blur);
+        out = tiny.scaled(size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    }
+
+    QPixmap pm = QPixmap::fromImage(out);
+    _canvaCaches[blur] = pm;
+    return pm;
 }
-
-//fs 即为新的目标尺寸
-QPixmap BackgroundWid::cachedBitmap(const QSize& fs){
-    if(_cacheFs == fs && _cacheBlur == _blur && _cacheMode == _mode && _blurDirty == false && !_cache.isNull())
-        return _cache;
-
-    _cache = QPixmap::fromImage(renderBitmap(_source, fs, _blur));
-    _cacheFs = fs;
-    _cacheBlur = _blur;
-    _cacheMode = _mode;
-
-    _blurDirty = false;
-
-    return _cache;
-}
-
 /*
 二、三个角色：QImage / QPixmap / QPainter
     类               是什么                                             类比

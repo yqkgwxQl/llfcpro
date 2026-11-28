@@ -86,6 +86,7 @@ private:
     void addLBGroup(StateWidget* state_widget);
     void clearLabelState(StateWidget* cur_state_widget);
 
+    void updateBackgroundRegions();
 
     BackgroundWid* _bg;
     Ui::ChatDialog *ui;

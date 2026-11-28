@@ -18,36 +18,36 @@ namespace {
 // 否则会被主表压住（QSS 按特异性比较，不是按书写顺序）。
 const QVector<SurfaceSpec>& surfaceSpecs(){
     static const QVector<SurfaceSpec> kTable = {
-        // key        选择器（必须带祖先 id）                                                    colorToken    alpha     blur
-        {"sideBar",   {"#side_bar"},                                                             "sideBar",    0,     -1},
+        // key        选择器（必须带祖先 id）                                                    colorToken    wpAlpha  tintAlpha    blur
+        {"sideBar",   {"#side_bar"},                                                             "sideBar",   255,       0,       -1},
 
         // 列表列：三个列表都是 chat_user_wid 的子控件，和主表逐字对齐
         {"list",      {"#chat_user_wid #chat_user_list",
                        "#chat_user_wid #search_list",
-                       "#chat_user_wid #con_user_list"},                                         "bg",         0,     -1},
+                       "#chat_user_wid #con_user_list"},                                         "bg",        255,       0,       -1},
 
         // 聊天页：只给页面根铺色（chat_bg 在主表里已是 transparent，会跟着根走）
-        {"chat",      {"#chat_page"},                                                            "surface",     0,    -1},
+        {"chat",      {"#chat_page"},                                                            "surface",    255,       0,      -1},
 
-        {"toolbar",   {"#tool_wid"},                                                             "surface",    200,    -1},
-        {"input",     {"#send_wid"},                                                             "surface",    180,    -1},
+        {"toolbar",   {"#tool_wid"},                                                             "surface",    255,     200,      -1},
+        {"input",     {"#send_wid"},                                                             "surface",    255,     180,      -1},
 
         // 输入框在 chat_data_wid 里；带祖先是为了压住主表的 #chat_edit
-        {"edit",      {"#chat_data_wid #chat_edit"},                                             "surface",    180,    -1},
+        {"edit",      {"#chat_data_wid #chat_edit"},                                             "surface",    255,     180,      -1},
 
-        {"search",    {"#search_wid"},                                                           "bg",           0,    -1},
+        {"search",    {"#search_wid"},                                                           "bg",         255,   0,          -1},
 
         // 新的朋友页：friend_apply_page 是页面根，friend_apply_wid 是标题栏容器，
         // 后两个和主表选择器逐字一致
         {"applyPage", {"#friend_apply_page",
                        "#friend_apply_wid",
                        "ApplyFriendPage #apply_friend_list",
-                       "#friend_apply_wid #friend_apply_lb"},                                    "surfaceAlt", 0,    -1},
+                       "#friend_apply_wid #friend_apply_lb"},                                    "surfaceAlt", 255,    0,        -1},
 
         // 申请好友对话框是独立顶层窗口：半透明会透出桌面，这里保持不透明
         {"applyDlg",  {"#ApplyFriend",
                       "#ApplyFriend #scrollArea",
-                      "#ApplyFriend #scrollcontent"},                                           "surface",    255,    -1},
+                      "#ApplyFriend #scrollcontent"},                                           "surface",     255,    255,       -1},
         };
         return kTable;
     }
@@ -56,8 +56,7 @@ const QVector<SurfaceSpec>& surfaceSpecs(){
 // ---------------------------------------------------------------- 持久化
     void ThemeManager::load(){
 
-        const QString dir =
-            QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+        const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
         QDir().mkpath(dir);                       // 首次不存在，必须建
 
         QSettings s(dir + QStringLiteral("/theme.ini"), QSettings::IniFormat);
@@ -82,11 +81,26 @@ const QVector<SurfaceSpec>& surfaceSpecs(){
                     如果没读到，就用默认值 t.sideBar
         */
 
-        _surfaceAlphas.clear();
+        _surfaceWpAlphas.clear();
+        _surfaceTintAlphas.clear();
+        _surfaceBlurs.clear();
         for (const SurfaceSpec& spec : surfaceSpecs()) {
-            const int a = s.value("alpha_" + spec.key, spec.alpha).toInt();
-            _surfaceAlphas[spec.key] = qBound(0, a, 255);
+            const int wpAlpha = s.value("wpAlpha_" + spec.key, spec.wpAlpha).toInt();
+            const int tintAlpha = s.value("tintAlpha_" + spec.key, spec.tintAlpha).toInt();
+            const int blur = s.value("blur_" + spec.key, spec.blur).toInt();
+            // const QColor color = s.value("color_" + spec.key, spec.colorToken).toInt();
+            _surfaceWpAlphas[spec.key] = qBound(0, wpAlpha, 255);
+            _surfaceTintAlphas[spec.key] = qBound(0, tintAlpha, 255);
+            _surfaceBlurs[spec.key] = blur;
+            // _surfaceColors[spec.key] =
         }
+        _wallpaperPath   = s.value("wallpaperPath",   _wallpaperPath).toString();
+        _wallpaperBlur   = qBound(0, s.value("wallpaperBlur", _wallpaperBlur).toInt(), 40);
+        _wallpaperMode   = WallpaperLayoutMode(qBound(0, s.value("wallpaperMode", int(_wallpaperMode)).toInt(), 3));
+        _wallpaperOpacity = qBound(0.0, s.value("wallpaperOpacity", _wallpaperOpacity).toDouble(), 1.0);
+        _wallpaperScrimAlpha = qBound(0, s.value("wallpaperScrim", _wallpaperScrimAlpha).toInt(), 255);
+        updateTone();
+
         s.endGroup();
 
         setTokens(t);                             // _dirty = true
@@ -102,11 +116,20 @@ const QVector<SurfaceSpec>& surfaceSpecs(){
         for (const TokenSlot& slot : tokenSlots())
             s.setValue(QString::fromLatin1(slot.key), _tokens.*(slot.member));
 
-        for (const SurfaceSpec& spec : surfaceSpecs())
-            s.setValue(QStringLiteral("alpha_") + spec.key, surfaceAlpha(spec.key));
+        for (const SurfaceSpec& spec : surfaceSpecs()){
+            s.setValue(QStringLiteral("wpAlpha_") + spec.key, surfaceWpAlpha(spec.key));
+            s.setValue(QStringLiteral("tintAlpha_") + spec.key, surfaceTintAlpha(spec.key));
+            s.setValue(QStringLiteral("blur_") + spec.key, surfaceBlur(spec.key));
+        }
+
+        s.setValue("wallpaperPath",    _wallpaperPath);
+        s.setValue("wallpaperBlur",    _wallpaperBlur);
+        s.setValue("wallpaperMode",    static_cast<int>(_wallpaperMode));
+        s.setValue("wallpaperOpacity", _wallpaperOpacity);
+        s.setValue("wallpaperScrim",   _wallpaperScrimAlpha);
 
         s.endGroup();
-        s.sync();                   // // 马上写文件
+        s.sync();                   //马上写文件
     }
 
 // ---------------------------------------------------------------- 持久化
@@ -177,6 +200,7 @@ const ThemeTokens& ThemeManager::tokens()const{
 void ThemeManager::setTokens(const ThemeTokens& t){
     _tokens = t;
     _dirty = true;
+    emit sigChanged();
 }
 
 //目前我认为它主要是提高亮度？？？？？
@@ -204,7 +228,7 @@ WallpaperLayoutMode ThemeManager::wallpaperMode()const{
     return _wallpaperMode;
 }
 
-int ThemeManager::wallpaperOpacity()const{
+double ThemeManager::wallpaperOpacity()const{
     return _wallpaperOpacity;
 }
 
@@ -216,13 +240,7 @@ void ThemeManager::setWallpaperPath(const QString& path){
     if (_wallpaperPath == path)
         return;
     _wallpaperPath = path;
-    if(path.isEmpty()){
-        _toneTitle = _toneBody = -1;
-    }else {
-        QImage img = getScaledImage(path, QSize(64, 64));
-        _toneTitle = computeWallpaperTone(img, 0.0,    1.0/6);
-        _toneBody  = computeWallpaperTone(img, 1.0/6,  1.0);
-    }
+    updateTone();
     _dirty = true;
     emit sigChanged();
 }
@@ -241,11 +259,11 @@ void ThemeManager::setWallpaperMode(WallpaperLayoutMode mode){
     _dirty = true;
     emit sigChanged();
 }
-void ThemeManager::setWallpaperOpacity(int percent){
-    int newPercent = qBound(0, percent, 100);
-    if(_wallpaperOpacity == newPercent)
+void ThemeManager::setWallpaperOpacity(double opacity){
+    const double newOpacity = qBound(0.0, opacity, 1.0);
+    if(_wallpaperOpacity == newOpacity)
         return;
-    _wallpaperOpacity = newPercent;
+    _wallpaperOpacity = newOpacity;
     _dirty = true;
     emit sigChanged();
 }
@@ -270,12 +288,18 @@ QString ThemeManager::wallpaperOverride()const{
     out += "\n/* ===== wallpaper override ===== */\n";
 
     // ---- ① 区域底色：全部由表生成 ----
+        // 这些region由 BackgroundWid 负责画，QSS 不能再铺色
+    static const QSet<QString> kPaintedByBackground = {"sideBar", "list", "chat"};
     for (const SurfaceSpec& spec : surfaceSpecs()) {
         const QString color = resolveSurfaceColor(spec.colorToken);
-        const int a = surfaceAlpha(spec.key);
-        const QString bg = (a == 0) ? QStringLiteral("transparent") : rgba(color, a);
+            //不是指定区域内的组件，一般只添加遮罩不透明度
+        const int tintAlpha = surfaceTintAlpha(spec.key);
+        const QString bg = (tintAlpha == 0) ? QStringLiteral("transparent") : rgba(color, tintAlpha);
         const QString selectors = spec.selectors.join(QLatin1Char(','));
-        out += QString("%1{background:%2;}\n").arg(selectors, bg);
+        if (kPaintedByBackground.contains(spec.key))
+            out += QString("%1{background:transparent;}\n").arg(selectors);
+        else
+            out += QString("%1{background:%2;}\n").arg(selectors, bg);
     }
 
     // ---- ② 不适合进表的固定例外 ----
@@ -303,9 +327,17 @@ QString ThemeManager::wallpaperOverride()const{
         out += QString("ChatUserWid #user_name_lb{color:%1;}\n").arg(dark ? "rgba(255,255,255,200)" : tokens().text);
         out += QString("ConUserItem #user_name_lb{color:%1;}\n").arg(dark ? "rgba(255,255,255,200)" : tokens().text);
 
-            // 注意：这条必须带 ConUserItem，否则会被主表同名规则压住 因为主表为ConUserItem #con_user_item，深度为2，直接覆盖 单#con_user_item
-        out += QString("ConUserItem #con_user_item{border-bottom:1px solid %1;}\n").arg(line);
+        out += QString("ConUserItem#con_user_item{border-bottom:1px solid %1;}\n").arg(line);
+        /*
+            写法                           翻译成人话                                     检查的是
+            #con_user_item              名字叫 con_user_item 的那个控件                自身的 objectName
+            ConUserItem                 类是 ConUserItem 的那个控件	                 自身的 class
+            ConUserItem#con_user_item	类 ConUserItem 且名字 con_user_item 的控件	     自身两个属性：class + objectName
+            ConUserItem #user_name_lb	在 ConUserItem 里面找名字 user_name_lb 的控件	名字那个控件的祖先链里有没有 ConUserItem
 
+        关键差别就一句：
+            有空格 = 在“里面”找（不含自己）；没空格 = 检查“自己”。
+        */
         out += QString("#GroupTipItem{border-bottom:1px solid %1;}\n").arg(line);
         out += QString("#GroupTipItem QLabel{color:%1;}\n").arg(dark ? "rgba(255,255,255,150)" : tokens().text);
 
@@ -322,25 +354,50 @@ QString ThemeManager::wallpaperOverride()const{
     return out;
 }
 
-int ThemeManager::surfaceAlpha(const QString& key)const{
-    if (_surfaceAlphas.contains(key))
-        return _surfaceAlphas.value(key);
+int ThemeManager::surfaceWpAlpha(const QString& key)const{
+    if (_surfaceWpAlphas.contains(key))
+        return _surfaceWpAlphas.value(key);
 
     for (const SurfaceSpec& spec : surfaceSpecs())
         if (spec.key == key)
-            return spec.alpha;          // 没设置过 → 用表里的默认值
+            return spec.wpAlpha;          // 没设置过 → 用表里的默认值
 
     qWarning() << "[theme] 未知的区域 key:" << key;
     return 255;
 }
 
-void ThemeManager::setSurfaceAlpha(const QString& key, int alpha){
-    if(surfaceAlpha(key) == alpha)
+void ThemeManager::setSurfaceWpAlpha(const QString& key, int alpha){
+    if(surfaceWpAlpha(key) == alpha)
         return;
 
-    _surfaceAlphas[key] = alpha;
+    _surfaceWpAlphas[key] = alpha;
     _dirty = true;
     emit sigChanged();
+}
+
+int ThemeManager::surfaceTintAlpha(const QString& key)const{
+    if (_surfaceTintAlphas.contains(key))
+        return _surfaceTintAlphas.value(key);
+
+    for (const SurfaceSpec& spec : surfaceSpecs())
+        if (spec.key == key)
+            return spec.tintAlpha;          // 没设置过 → 用表里的默认值
+
+    qWarning() << "[theme] 未知的区域 key:" << key;
+    return 255;
+}
+
+void ThemeManager::setSurfaceTintAlpha(const QString& key, int alpha){
+    if(surfaceTintAlpha(key) == alpha)
+        return;
+    _surfaceTintAlphas[key] = alpha;
+    _dirty = true;
+    emit sigChanged();
+}
+
+int ThemeManager::realRegionWpAlpha(const QString& key)const{
+    const int wp = surfaceWpAlpha(key);                 // 0~255
+    return static_cast<int>(wallpaperOpacity() * wp);               // 0~100% × 系数
 }
 
 int ThemeManager::surfaceBlur(const QString& key)const{
@@ -354,9 +411,8 @@ int ThemeManager::surfaceBlur(const QString& key)const{
 }
 
 void ThemeManager::setSurfaceBlur(const QString& key, int blur){
-    if (surfaceBlur(key) == blur)
+    if(surfaceBlur(key) == blur)
         return;
-
     _surfaceBlurs[key] = blur;
     _dirty = true;
     emit sigChanged();
@@ -370,8 +426,12 @@ QColor ThemeManager::surfaceColor(const QString& key)const{
     return QColor(tokens().surface);
 }
 
-void ThemeManager::setSurfaceBlur(const QString& key, const QColor& color){
-
+void ThemeManager::setSurfaceColor(const QString& key, const QColor& color){
+    if(surfaceColor(key) == color)
+        return;
+    _surfaceColors[key] = color;
+    _dirty = true;
+    emit sigChanged();
 }
 
 QStringList ThemeManager::surfaceKeys() const{
@@ -404,6 +464,16 @@ int ThemeManager::computeWallpaperTone(const QImage& img, double fromRatio, doub
             sum += 0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue();
         }
     return int(sum / (img.width() * (to - from))); // 除以实际总像素数
+}
+
+void ThemeManager::updateTone(){
+    if(!_wallpaperPath.isEmpty()){
+        const QImage img = getScaledImage(_wallpaperPath, QSize(64, 64));
+        _toneTitle = computeWallpaperTone(img, 0.0,   1.0 / 6);
+        _toneBody  = computeWallpaperTone(img, 1.0 / 6, 1.0);
+    }else{
+        _toneTitle = _toneBody = -1;
+    }
 }
 
 QString ThemeManager::resolveSurfaceColor(const QString& token) const{

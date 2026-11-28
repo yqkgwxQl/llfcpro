@@ -6,6 +6,10 @@ ConUserItem::ConUserItem(QWidget *parent) :
     ui(new Ui::ConUserItem)
 {
     ui->setupUi(this);
+    // objectName 统一在这里设置：无论谁 new 出来（演示数据 / 同意好友 / 认证回复）都能被
+    // QSS 的 ConUserItem#con_user_item 命中。
+    // 注意不能写成 "ConUserItem #con_user_item"（带空格 = 后代选择器，自己不是自己的后代）。
+    setObjectName("con_user_item");
     SetItemType(ListItemType::CONTACT_USER_ITEM);
     ui->red_point->raise(); //raise() 的作用是把控件提到父控件的最上层
     ShowRedPoint(false);

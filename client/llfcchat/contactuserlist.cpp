@@ -77,8 +77,7 @@ void ContactUserList::addContactUserList()
         int head_i = randomValue%heads.size();
         int name_i = randomValue%names.size();
 
-        auto *con_user_wid = new ConUserItem();
-        con_user_wid->setObjectName("con_user_item");
+        auto *con_user_wid = new ConUserItem();   // objectName 已在构造函数里统一设置
         con_user_wid->SetInfo(0,names[name_i], heads[head_i]);
         QListWidgetItem *item = new QListWidgetItem;
         //qDebug()<<"chat_user_wid sizeHint is " << chat_user_wid->sizeHint();
